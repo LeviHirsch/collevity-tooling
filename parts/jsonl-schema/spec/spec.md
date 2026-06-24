@@ -2,7 +2,7 @@
 
 > **Template for greenfield projects.** For iterations on an existing spec, the skill uses `spec-iteration.md` instead.
 > Status: draft
-> Revision: 2
+> Revision: 3
 > Last updated: 2026-06-24
 
 ## Goal
@@ -11,13 +11,14 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 
 ## Constraints
 
-- **Capture-friction guarantee:** the required capture-time floor must be cheap top-line fields only; AI/ingest fills all structure. The required floor is `id`, `text`, `created_at`, `source`, `author` (DEC-001, DEC-014).
+- **Capture-friction guarantee:** the required capture-time floor (defined in AC1.1) must be cheap top-line fields only; AI/ingest fills all structure (DEC-001, DEC-014).
 - **`/checkin` parity:** must keep feeding the daily check-in via a `read_day(date)` seam whose output *format* matches `read_dropper_day.py` ({text, time} per day) (DEC-013).
 - **Physical store = JSONL for v1, logically portable:** one append-dominant JSONL pool; logical entry shape kept storage-agnostic up the ladder JSONL → SQLite → Postgres/Supabase, accessed only through a thin storage seam (`append_entry` / `edit_entry` / `read_day`), never scattered raw file reads or writes (DEC-005).
 - **Core is Excel-blind:** the schema is designed as if Excel does not exist; all Excel-specific behavior lives in a bridge script plus a sidecar state file, retired by deleting them (DEC-011).
 - **Thin-stream principle:** the horizontal stream stays deliberately thin; typing, structure, entities, and revision history accrete in the downstream vertical/strata layer, not on the raw entry (DEC-009).
 - **Single-user / local / private.**
 - **Time correctness at root:** `created_at` carries an explicit offset so the tz mis-bucketing bug is fixed at the source (DEC-014).
+- **Offset correctness is owned at capture, not here:** each capture surface stamps `created_at` with the correct local offset; this part assumes it and neither re-derives nor validates it (AC3.2's bucketing is only as correct as the offset it is handed). **Excel** is the channel that can't self-stamp (naive datetimes), so the bridge owns its offset — the legacy 852 via the one-time backfill (AC4.4), ongoing pre-deprecation drops stamped EDT — until Excel is retired (DEC-017).
 
 ## Success criteria
 
@@ -45,7 +46,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 
 ### AC1. Logical entry schema (the field contract)
 - AC1.1. A schema document defines the **required floor** — `id`, `text`, `created_at`, `source`, `author` — and a valid entry is exactly one JSON object carrying all five. (→ goal, success (a))
-- AC1.2. `id` is specified as a **UUIDv7** string, minted by the store seam on append (not by the capture surface). (→ DEC-010)
+- AC1.2. `id` is specified as a **UUIDv7** string, minted by the store seam on append (not by the capture surface). *(Implementation note: UUIDv7 is not in the Python stdlib `uuid` module; an external lib such as `uuid6` / `uuid-utils` is a build dependency.)* (→ DEC-010)
 - AC1.3. `created_at` is specified as an **ISO-8601 string with explicit offset** (e.g. `2026-06-24T15:42:00-04:00`); no separate `tz` field; IANA zone name deferred. (→ DEC-014, success (d))
 - AC1.4. `source` is a simple always-present channel tag; `author` is present and equals `user` in v1. (→ DEC-002, baseline)
 - AC1.5. The schema defines the **optional** fields `context`, `tags`, `meta_notes`, `source_data`, each absent-when-unused, and a record missing all of them still validates. (→ DEC-002, DEC-008, DEC-012)
@@ -59,7 +60,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 - AC2.3. The seam (`append_entry` / `edit_entry` / `read_day`) is the only documented access path — no scattered raw file reads or writes — keeping the logical schema swappable up the JSONL → SQLite → Postgres ladder (where the physical edit primitive differs: line-rewrite for JSONL, `UPDATE` for Postgres, behind the same logical `edit_entry`). (→ DEC-005)
 
 ### AC3. Check-in read seam
-- AC3.1. `read_day(date)` reads the unified JSONL and returns `{text, time}` per entry for that day. Parity with `read_dropper_day.py` is **output-format parity** (the `{text, time}`-per-day shape its consumers expect), **not** behavioral replication of its tz mis-bucketing — which AC3.2 corrects at source. (→ success (b), DEC-013, DEC-014)
+- AC3.1. `read_day(date)` reads the unified JSONL and returns `{text, time}` per entry for that day. Parity with `read_dropper_day.py` is **output-format parity** (the `{text, time}`-per-day shape its consumers expect), **not** behavioral replication of its tz mis-bucketing — which AC3.2 corrects at source. `read_day` is v1's **scoped read surface** — exactly what `/checkin` needs; further read shapes (e.g. `read_week`, `read_by_tag`) are added later as additional seam methods, not by redesigning the seam or store. (→ success (b), DEC-013, DEC-014)
 - AC3.2. `read_day` buckets entries by **local-day-of-offset `created_at`** (evening/late-night drops land on their local day, not the next UTC day). (→ success (d), DEC-013)
 
 ### AC4. Excel bridge (transition ingest)
