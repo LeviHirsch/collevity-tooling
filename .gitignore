@@ -1,0 +1,16 @@
+# OS cruft
+.DS_Store
+
+# Office binaries — keep the repo text-only (the Excel Dropper etc.)
+*.xlsm
+*.xlsx
+*.xls
+
+# Python (future implementation)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local env / secrets
+.env
