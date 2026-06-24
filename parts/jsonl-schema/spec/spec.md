@@ -2,7 +2,7 @@
 
 > **Template for greenfield projects.** For iterations on an existing spec, the skill uses `spec-iteration.md` instead.
 > Status: draft
-> Revision: 5
+> Revision: 6
 > Last updated: 2026-06-24
 
 ## Goal
@@ -19,7 +19,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 - **Thin-stream principle:** the horizontal stream stays deliberately thin; typing, structure, entities, and revision history accrete in the downstream vertical/strata layer, not on the raw entry (DEC-009).
 - **Single-user / local / private.**
 - **Time correctness at root:** `created_at` carries an explicit offset so the tz mis-bucketing bug is fixed at the source (DEC-014).
-- **Offset correctness is owned at capture, not here:** each capture surface stamps `created_at` with the correct local offset; this part assumes it and neither re-derives nor validates it. Excel is the one channel that can't self-stamp (naive datetimes), so the bridge owns its offset — AC4.4 holds the legacy-backfill / EDT detail (DEC-017).
+- **Offset correctness is owned at capture, not here:** each capture surface stamps `created_at` with the correct local offset; this part assumes it and neither re-derives nor validates it — Excel's naive-datetime exception is bridge-owned (AC4.4) (DEC-017).
 
 ## Success criteria
 
@@ -58,7 +58,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 ### AC2. Storage seam (write + edit)
 - AC2.1. `append_entry` accepts a floor-bearing entry, mints the UUIDv7 `id`, and appends one line to the JSONL pool. (→ DEC-005, DEC-010, success (a))
 - AC2.2. An existing entry can be **edited in place via the seam** (`edit_entry` rewrites the line for a given `id`; no `lineage_id`, no revision history, no `modified` bump). (→ DEC-006)
-- AC2.3. The seam (`append_entry` / `edit_entry` / `read_day` / `sync_sources`) is the only documented access path — no scattered raw file reads or writes — keeping the logical schema swappable up the JSONL → SQLite → Postgres ladder (where the physical edit primitive differs: line-rewrite for JSONL, `UPDATE` for Postgres, behind the same logical `edit_entry`). (→ DEC-005, DEC-018)
+- AC2.3. The seam (`append_entry` / `edit_entry` / `read_day` / `sync_sources`) is the only documented access path — no scattered raw file reads or writes — keeping the logical schema swappable up the JSONL → SQLite → Postgres ladder (where the physical edit primitive differs: line-rewrite for JSONL, `UPDATE` for Postgres, behind the same logical `edit_entry`). The seam-only rule is a **convention verified by code review/grep, not runtime-enforced** in v1. (→ DEC-005, DEC-018)
 
 ### AC3. Check-in read seam
 - AC3.1. `read_day(date)` reads the unified JSONL and returns `{text, time}` per entry for that day, as a **pure retrieval** (no ingestion, no write side-effects). Parity with `read_dropper_day.py` is **output-format parity**, **not** behavioral replication of its tz mis-bucketing (AC3.2 corrects that at source). `read_day` is v1's scoped read surface; further read shapes (`read_week`, `read_by_tag`) are additive seam methods later, not a seam/store redesign. (→ success (b), DEC-013, DEC-014, DEC-018)
@@ -66,14 +66,14 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 
 ### AC4. Excel bridge (transition ingest)
 - AC4.1. A bridge ingests Excel rows into the JSONL pool reading **only `{text, drop-timestamp (col E)}`** and **explicitly ignoring the `modified` column** (recorded ignore-rule protocol). (→ DEC-011, constraint Excel-blind)
-- AC4.2. A persistent sidecar mapping (e.g. `excel-ingest-state.json`) keys each Excel row (by drop-timestamp, sub-second tiebreaker by row index — col-E timestamp stability across saves is assumed under the single-file regime, DEC-016) → the JSONL `id` created + a snapshot of the last-ingested text; the bridge then reads/writes the pool **through the storage seam, keyed by that `id`** (not raw line-matching). A row lacking a usable timestamp key **fails loudly** rather than mis-mapping silently. (→ DEC-011, DEC-016, DEC-005, success (c))
+- AC4.2. A persistent sidecar mapping (e.g. `excel-ingest-state.json`) keys each Excel row (by drop-timestamp, sub-second tiebreaker by row index — col-E timestamp stability across saves is assumed under the single-file regime, DEC-016) → the JSONL `id` created + a snapshot of the last-ingested text; the bridge then reads/writes the pool **through the storage seam, keyed by that `id`** (not raw line-matching). A row lacking a usable timestamp key **fails loudly** — the run aborts with an error naming the offending row, no partial ingest — rather than mis-mapping silently. (→ DEC-011, DEC-016, DEC-005, success (c))
 - AC4.3. Snapshot reconciliation per run: a new row → `append_entry`; text changed vs snapshot → `edit_entry` on the mapped `id`; unchanged → skip — yielding idempotent re-runs and edit propagation. (→ success (c), DEC-011)
 - AC4.4. After a **one-time tz backfill**, every legacy row carries the correct offset: ongoing rows stamped EDT (`-04:00`); the MDT minority carries `-06:00`. The backfill is one-shot — no ongoing tz logic, no `source_data` timestamp stash. The Phase-2 deliverable is the EDT stamping + backfill machinery; *identifying* which legacy rows were MDT is the open **input** (Open Question 1), not part of this deliverable. (→ DEC-013, success (c))
 - AC4.5. Bridge and sidecar are fully self-contained: deleting them leaves the core JSONL and schema untouched, and unregisters the bridge from `sync_sources` (AC5) with no effect on `read_day` (Excel-blind verification). (→ DEC-011, DEC-018, constraint Excel-blind)
 - AC4.6. The Excel bridge's ingestion runs **under `sync_sources`** (AC5), **idempotent within a session** (duplicate count never grows), with **no daemon and no cron**. It is `sync_sources`'s only v1 registered ingester and is removed when Excel is retired (AC4.5). (→ DEC-018, DEC-015, success (c))
 
 ### AC5. Source synchronization seam (`sync_sources`)
-- AC5.1. `sync_sources()` is the seam op that brings the lake **current from pull-based external capture sources** before a read; native **push** surfaces (writing directly via `append_entry`) require no sync. **Freshness is a consumer-composition contract:** `read_day` makes no standalone freshness guarantee, so a consumer needing current data composes `sync_sources()` then `read_day()` (op-path concern, DEC-013); staleness is not surfaced or enforced by the seam. In v1, exactly one consumer (`/checkin`'s read path) owns this composition. (→ DEC-018, DEC-019, success (b))
+- AC5.1. `sync_sources()` is the seam op that brings the lake **current from pull-based external capture sources** before a read; native **push** surfaces (writing directly via `append_entry`) require no sync. **Freshness is a consumer-composition contract:** `read_day` makes no standalone freshness guarantee, so a consumer needing current data composes `sync_sources()` then `read_day()` (op-path concern, DEC-013; staleness is neither surfaced nor enforced by the seam). In v1, exactly one consumer (`/checkin`'s read path) owns this composition. (→ DEC-018, DEC-019, success (b))
 - AC5.2. v1 implements **exactly one** ingester under `sync_sources` — the Excel bridge (AC4); **no multi-source registry in v1**. (The contract is designed to admit a future second pull source additively — rationale in DEC-018 — but that is not a v1 deliverable.) (→ DEC-018, DEC-010)
 
 ## Implementation phases
@@ -83,6 +83,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 ### Phase 1. Schema + storage seam (the core)
 **Delivers:** A documented, validating logical entry schema and a thin `append_entry` / `edit_entry` / `read_day` (pure read) / `sync_sources` (boundary, no ingesters yet) seam over an append-dominant JSONL pool — a core that can be written to and read from with zero knowledge of Excel.
 **Unblocks:** Phase 2 (Excel bridge + legacy migration) — every channel and consumer reads/writes through this, and the Excel bridge registers under the `sync_sources` boundary defined here.
+**Build prerequisite:** a UUIDv7 library (`uuid6` / `uuid-utils`) — not in the Python stdlib `uuid` module (AC1.2); resolve before starting Phase 1.
 - AC1.1
 - AC1.2
 - AC1.3
@@ -101,6 +102,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 ### Phase 2. Excel bridge + legacy migration
 **Delivers:** Excel remains a live capture channel during transition — the 852 legacy rows plus ongoing Excel drops/edits ingest idempotently into the JSONL pool via an Excel-blind bridge and sidecar (writing through the seam), with the one-time tz backfill; the bridge is registered as the sole v1 ingester under `sync_sources` (no daemon/cron, idempotent), and is removed cleanly when Excel retires.
 **Depends on:** Phase 1 (the schema + `append_entry`/`edit_entry` seam the bridge writes through, and the `sync_sources` boundary the bridge registers under).
+**Prerequisite:** Open Question 1 (MDT-row identification) resolved before the one-time backfill (AC4.4) runs.
 - AC4.1
 - AC4.2
 - AC4.3
