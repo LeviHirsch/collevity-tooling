@@ -2,7 +2,7 @@
 
 > **Template for greenfield projects.** For iterations on an existing spec, the skill uses `spec-iteration.md` instead.
 > Status: draft
-> Revision: 4
+> Revision: 5
 > Last updated: 2026-06-24
 
 ## Goal
@@ -19,12 +19,12 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 - **Thin-stream principle:** the horizontal stream stays deliberately thin; typing, structure, entities, and revision history accrete in the downstream vertical/strata layer, not on the raw entry (DEC-009).
 - **Single-user / local / private.**
 - **Time correctness at root:** `created_at` carries an explicit offset so the tz mis-bucketing bug is fixed at the source (DEC-014).
-- **Offset correctness is owned at capture, not here:** each capture surface stamps `created_at` with the correct local offset; this part assumes it and neither re-derives nor validates it (AC3.2's bucketing is only as correct as the offset it is handed). **Excel** is the channel that can't self-stamp (naive datetimes), so the bridge owns its offset — the legacy 852 via the one-time backfill (AC4.4), ongoing pre-deprecation drops stamped EDT — until Excel is retired (DEC-017).
+- **Offset correctness is owned at capture, not here:** each capture surface stamps `created_at` with the correct local offset; this part assumes it and neither re-derives nor validates it. Excel is the one channel that can't self-stamp (naive datetimes), so the bridge owns its offset — AC4.4 holds the legacy-backfill / EDT detail (DEC-017).
 
 ## Success criteria
 
 - (a) A drop from each live channel (Excel bridge, and the reserved claude-hook shape) lands as a valid record carrying the required floor (`id`, `text`, `created_at`, `source`, `author`).
-- (b) `/checkin` reading JSONL via `read_day` matches Excel-era output for the same day.
+- (b) `/checkin` reading JSONL via `read_day` matches Excel-era output *format* for the same day (the tz mis-bucketing is corrected at source, not reproduced).
 - (c) The 852 Excel rows ingest idempotently: re-running the bridge produces no duplicates, and a text edit on an Excel row propagates as an update (not a new entry).
 - (d) Local-day bucketing: evening / late-night drops appear on the day they were made (local-day-of-offset), not the next UTC day.
 
@@ -61,20 +61,20 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 - AC2.3. The seam (`append_entry` / `edit_entry` / `read_day` / `sync_sources`) is the only documented access path — no scattered raw file reads or writes — keeping the logical schema swappable up the JSONL → SQLite → Postgres ladder (where the physical edit primitive differs: line-rewrite for JSONL, `UPDATE` for Postgres, behind the same logical `edit_entry`). (→ DEC-005, DEC-018)
 
 ### AC3. Check-in read seam
-- AC3.1. `read_day(date)` reads the unified JSONL and returns `{text, time}` per entry for that day. It is a **pure retrieval** — it performs no ingestion and has no write side-effects; a consumer needing up-to-date data calls `sync_sources()` first (AC5). Parity with `read_dropper_day.py` is **output-format parity** (the `{text, time}`-per-day shape its consumers expect), **not** behavioral replication of its tz mis-bucketing — which AC3.2 corrects at source. `read_day` is v1's **scoped read surface** (a v1 scope limit, not a claim that the seam is read-day-only) — exactly what `/checkin` needs; further read shapes (e.g. `read_week`, `read_by_tag`) are added later as additional seam methods, not by redesigning the seam or store. (→ success (b), DEC-013, DEC-014, DEC-018)
+- AC3.1. `read_day(date)` reads the unified JSONL and returns `{text, time}` per entry for that day, as a **pure retrieval** (no ingestion, no write side-effects). Parity with `read_dropper_day.py` is **output-format parity**, **not** behavioral replication of its tz mis-bucketing (AC3.2 corrects that at source). `read_day` is v1's scoped read surface; further read shapes (`read_week`, `read_by_tag`) are additive seam methods later, not a seam/store redesign. (→ success (b), DEC-013, DEC-014, DEC-018)
 - AC3.2. `read_day` buckets entries by **local-day-of-offset `created_at`** (evening/late-night drops land on their local day, not the next UTC day). (→ success (d), DEC-013)
 
 ### AC4. Excel bridge (transition ingest)
 - AC4.1. A bridge ingests Excel rows into the JSONL pool reading **only `{text, drop-timestamp (col E)}`** and **explicitly ignoring the `modified` column** (recorded ignore-rule protocol). (→ DEC-011, constraint Excel-blind)
-- AC4.2. A sidecar state file (`excel-ingest-state.json`) maps each Excel row (by drop-timestamp, sub-second tiebreaker by row index) → the JSONL `id` created + a snapshot of the last-ingested text; the bridge then reads/writes the pool **through the storage seam, keyed by that `id`** (not raw line-matching). A row lacking a usable timestamp key **fails loudly** rather than mis-mapping silently. (→ DEC-011, DEC-005, success (c))
+- AC4.2. A persistent sidecar mapping (e.g. `excel-ingest-state.json`) keys each Excel row (by drop-timestamp, sub-second tiebreaker by row index — col-E timestamp stability across saves is assumed under the single-file regime, DEC-016) → the JSONL `id` created + a snapshot of the last-ingested text; the bridge then reads/writes the pool **through the storage seam, keyed by that `id`** (not raw line-matching). A row lacking a usable timestamp key **fails loudly** rather than mis-mapping silently. (→ DEC-011, DEC-016, DEC-005, success (c))
 - AC4.3. Snapshot reconciliation per run: a new row → `append_entry`; text changed vs snapshot → `edit_entry` on the mapped `id`; unchanged → skip — yielding idempotent re-runs and edit propagation. (→ success (c), DEC-011)
 - AC4.4. After a **one-time tz backfill**, every legacy row carries the correct offset: ongoing rows stamped EDT (`-04:00`); the MDT minority carries `-06:00`. The backfill is one-shot — no ongoing tz logic, no `source_data` timestamp stash. The Phase-2 deliverable is the EDT stamping + backfill machinery; *identifying* which legacy rows were MDT is the open **input** (Open Question 1), not part of this deliverable. (→ DEC-013, success (c))
 - AC4.5. Bridge and sidecar are fully self-contained: deleting them leaves the core JSONL and schema untouched, and unregisters the bridge from `sync_sources` (AC5) with no effect on `read_day` (Excel-blind verification). (→ DEC-011, DEC-018, constraint Excel-blind)
 - AC4.6. The Excel bridge's ingestion runs **under `sync_sources`** (AC5), **idempotent within a session** (duplicate count never grows), with **no daemon and no cron**. It is `sync_sources`'s only v1 registered ingester and is removed when Excel is retired (AC4.5). (→ DEC-018, DEC-015, success (c))
 
 ### AC5. Source synchronization seam (`sync_sources`)
-- AC5.1. `sync_sources()` is the seam op that brings the lake **current from pull-based external capture sources** before a read; native **push** surfaces (which write directly via `append_entry`) require no sync, and `read_day` performs no ingestion. A consumer needing fresh data composes `sync_sources()` then `read_day()` (op-path concern). (→ DEC-018, success (b))
-- AC5.2. v1 implements **exactly one** ingester under `sync_sources` — the Excel bridge (AC4). The general multi-source registry / per-source freshness machinery is **deferred**; the `sync_sources` contract is shaped so a second pull source (e.g. a future offline mobile cache, DEC-010) plugs in **additively**, without redesigning the seam. (→ DEC-018, DEC-010)
+- AC5.1. `sync_sources()` is the seam op that brings the lake **current from pull-based external capture sources** before a read; native **push** surfaces (writing directly via `append_entry`) require no sync. **Freshness is a consumer-composition contract:** `read_day` makes no standalone freshness guarantee, so a consumer needing current data composes `sync_sources()` then `read_day()` (op-path concern, DEC-013); staleness is not surfaced or enforced by the seam. In v1, exactly one consumer (`/checkin`'s read path) owns this composition. (→ DEC-018, DEC-019, success (b))
+- AC5.2. v1 implements **exactly one** ingester under `sync_sources` — the Excel bridge (AC4); **no multi-source registry in v1**. (The contract is designed to admit a future second pull source additively — rationale in DEC-018 — but that is not a v1 deliverable.) (→ DEC-018, DEC-010)
 
 ## Implementation phases
 
