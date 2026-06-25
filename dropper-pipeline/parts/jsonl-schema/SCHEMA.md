@@ -2,7 +2,7 @@
 
 > The canonical field-level shape of a Collevity **entry**: one item in the
 > horizontal, append-dominant time-stream (the "lake"). This document is the
-> field contract; `entry_store/schema.py` is its executable enforcement of the
+> field contract; `collevity/lake/schema.py` is its executable enforcement of the
 > required floor. The stream stays deliberately **thin** — typing, structure,
 > entities, and revision history accrete downstream in the strata layer, never
 > on the raw entry (DEC-009).

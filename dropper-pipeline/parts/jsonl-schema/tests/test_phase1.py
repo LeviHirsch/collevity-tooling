@@ -12,7 +12,7 @@ from datetime import date
 
 import pytest
 
-from entry_store import (
+from collevity.lake import (
     SchemaError,
     append_entry,
     edit_entry,

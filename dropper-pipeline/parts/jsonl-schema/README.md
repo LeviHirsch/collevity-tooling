@@ -1,9 +1,11 @@
-# Collevity Entry Store — `jsonl-schema` part
+# Collevity Data Lake — `jsonl-schema` part
 
-The canonical **logical entry schema** + the thin **storage seam** over an
-append-dominant JSONL pool. This is the keystone every pipeline part reads from
-and writes to; it keeps feeding `/checkin`. The core is **Excel-blind** — the
-schema is designed as if Excel does not exist.
+The canonical **logical entry schema** + the thin **storage seam** (`collevity.lake`)
+over an append-dominant JSONL pool — the **Collevity Data Lake**. This is the
+keystone every pipeline part reads from and writes to; it keeps feeding
+`/checkin`. The core is **Excel-blind** — the schema is designed as if Excel does
+not exist. (The future second database, the Collevity Data Strata, will be
+`collevity.strata`.)
 
 - **Spec (source of truth):** `spec/spec.md`, `spec/decisions.log` (DEC-001..021).
 - **Field contract:** `SCHEMA.md`.
@@ -18,7 +20,7 @@ seam-only rule keeps the logical schema swappable up the JSONL → SQLite →
 Postgres ladder.
 
 ```python
-from entry_store import append_entry, edit_entry, read_day, sync_sources
+from collevity.lake import append_entry, edit_entry, read_day, sync_sources
 
 # append-on-drop: caller supplies the floor minus id; the seam mints the id
 eid = append_entry({
@@ -38,11 +40,14 @@ rows = read_day("2026-06-24")          # -> [{"text": ..., "time": "15:42"}, ...
 sync_sources(); rows = read_day("2026-06-24")   # no-op sync in Phase 1
 ```
 
-## Pool location
+## Lake location
 
-Resolution order: explicit `pool_path=` arg → `COLLEVITY_ENTRY_POOL` env var →
-package default (`data/entries.jsonl` next to this part). The default is for dev;
-a real deployment sets the env var or passes the path.
+The lake is **one text file** — one entry per line. Resolution order: explicit
+`pool_path=` arg → `COLLEVITY_LAKE` env var → package default
+(`data/collevity_lake.jsonl` next to this part). The default is dev-only; a real
+deployment points `COLLEVITY_LAKE` at a stable path **outside the code tree**
+(the data outlives the code). Because all access goes through the seam, moving
+the lake later is `mv` + one env change — no dependent code to adjust.
 
 ## Develop / test
 

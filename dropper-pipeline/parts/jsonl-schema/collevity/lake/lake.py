@@ -1,33 +1,51 @@
-"""The storage seam over the append-dominant JSONL pool (AC2, AC3).
+"""The Collevity Data Lake — storage seam over the append-dominant JSONL pool.
 
-This module is the *only* documented access path to the pool (AC2.3, DEC-005):
-`append_entry` / `edit_entry` / `read_day`, plus `sync_sources` (in sync.py).
-Nothing else should read or write the JSONL file directly — that rule is a
-convention verified by code review/grep, not runtime-enforced in v1 (AC2.3).
+This module IS the seam (AC2.3, DEC-005): `append_entry` / `edit_entry` /
+`read_day` / `sync_sources` are the *only* documented way to touch the lake.
+Nothing else reads or writes the JSONL file directly — that rule keeps the
+logical schema swappable up the JSONL → SQLite → Postgres ladder (the physical
+edit primitive differs — line-rewrite here, `UPDATE` on Postgres — behind the
+same logical `edit_entry`). The seam-only rule is a convention verified by code
+review/grep, not runtime-enforced in v1 (AC2.3).
 
-Physical model: append-dominant JSONL (DEC-005, DEC-006).
-  - append-on-drop      → one new line (`append_entry`)
-  - edit-in-place       → rewrite the matching line, no revision history (`edit_entry`)
-The logical schema is kept storage-agnostic so the same seam survives the
-JSONL → SQLite → Postgres ladder, where only the physical edit primitive differs
-(line-rewrite here, `UPDATE` on Postgres) behind the same logical `edit_entry`.
+Physical model: append-dominant JSONL (DEC-005, DEC-006):
+  - append-on-drop → one new line (`append_entry`)
+  - edit-in-place  → rewrite the matching line, no revision history (`edit_entry`)
+
+The lake (the data) is one text file — one entry per line. The default location
+is dev-only; a real deployment sets COLLEVITY_LAKE to a stable path outside the
+code tree (the data outlives the code).
 """
 
 from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from datetime import date as date_cls, datetime
 from pathlib import Path
 
-from .ids import mint_id
+import uuid6
+
 from .schema import validate
 
-# --- pool location ---------------------------------------------------------
-# Resolution order: explicit arg → COLLEVITY_ENTRY_POOL env var → package default.
-# The default keeps the lake next to this part; a real deployment overrides it.
-_ENV_VAR = "COLLEVITY_ENTRY_POOL"
-_DEFAULT_POOL = Path(__file__).resolve().parent.parent / "data" / "entries.jsonl"
+# --- id minting (AC1.2, DEC-010, DEC-021) ----------------------------------
+# UUIDv7 is not in the stdlib `uuid` module (slated for 3.14). `uuid6.uuid7()`
+# returns a stdlib `uuid.UUID`, so the value drops natively into a future
+# Postgres `uuid` column. This is the ONLY place ids are minted; surfaces never
+# mint the canonical id.
+
+def _mint_id() -> str:
+    """Return a fresh UUIDv7 as a canonical string (AC1.2)."""
+    return str(uuid6.uuid7())
+
+
+# --- pool location ----------------------------------------------------------
+# Resolution order: explicit arg → COLLEVITY_LAKE env var → package default.
+# The default keeps the lake next to this part for dev; a real deployment points
+# COLLEVITY_LAKE at a stable path *outside* the code tree.
+_ENV_VAR = "COLLEVITY_LAKE"
+_DEFAULT_POOL = Path(__file__).resolve().parents[2] / "data" / "collevity_lake.jsonl"
 
 
 def _resolve_pool(pool_path: str | os.PathLike | None) -> Path:
@@ -57,9 +75,8 @@ def _read_all(pool: Path) -> list[dict]:
 
 def _append_line(pool: Path, entry: dict) -> None:
     pool.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(entry, ensure_ascii=False)
     with pool.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def _rewrite_all(pool: Path, entries: list[dict]) -> None:
@@ -77,7 +94,7 @@ def _rewrite_all(pool: Path, entries: list[dict]) -> None:
     os.replace(tmp, pool)
 
 
-# --- the seam --------------------------------------------------------------
+# --- the seam: write + edit (AC2) ------------------------------------------
 
 def append_entry(entry: dict, pool_path: str | os.PathLike | None = None) -> str:
     """Append a floor-bearing entry; mint and return its canonical id (AC2.1).
@@ -90,11 +107,11 @@ def append_entry(entry: dict, pool_path: str | os.PathLike | None = None) -> str
         raise TypeError(f"entry must be a dict, got {type(entry).__name__}")
     if "id" in entry:
         raise ValueError(
-            "do not supply 'id'; it is minted by the store seam on append (AC1.2, DEC-010)"
+            "do not supply 'id'; it is minted by the lake seam on append (AC1.2, DEC-010)"
         )
 
     record = dict(entry)  # copy — don't mutate the caller's dict
-    record["id"] = mint_id()
+    record["id"] = _mint_id()
     validate(record)  # enforce the full field contract before it touches disk
 
     _append_line(_resolve_pool(pool_path), record)
@@ -133,6 +150,8 @@ def edit_entry(
     _rewrite_all(pool, entries)
     return entries[i]
 
+
+# --- the seam: check-in read (AC3) -----------------------------------------
 
 def _local_day(created_at: str) -> date_cls:
     """The local-day-of-offset for a `created_at` string (AC3.2).
@@ -176,3 +195,41 @@ def read_day(
     ]
     rows.sort(key=lambda r: r["time"])
     return rows
+
+
+# --- the seam: pull-ingest boundary (AC5.1, DEC-018) -----------------------
+# `sync_sources()` brings the lake current from PULL-based external capture
+# sources before a read. Native PUSH surfaces (writing directly via
+# `append_entry`) need no sync. Pull-based capture is a permanent design need, so
+# this seam is permanent — but its registered ingesters come and go.
+#
+# Freshness is a consumer-composition contract (DEC-019): `read_day` makes no
+# standalone freshness guarantee, so a consumer composes `sync_sources()` then
+# `read_day()`. Staleness is neither surfaced nor enforced here.
+#
+# PHASE 1 SCOPE: boundary only — NO ingesters registered yet, so this is a
+# well-defined no-op reporting zero work. The Excel bridge (Phase 2 / AC4–AC5.2)
+# becomes the single v1 ingester; it is wired in at the marked extension point
+# below. Per DEC-018/AC5.2 there is deliberately NO multi-source registry in v1.
+
+
+@dataclass(frozen=True)
+class SyncResult:
+    """Outcome of a `sync_sources` run."""
+
+    sources_synced: int
+    entries_ingested: int
+
+
+def sync_sources() -> SyncResult:
+    """Bring pull-based sources current. No-op in Phase 1 (no ingesters yet).
+
+    The boundary exists so consumers can already write the
+    `sync_sources(); read_day()` composition (DEC-019) — it simply has nothing
+    to pull until the Excel bridge registers under it in Phase 2.
+    """
+    # --- Phase 2 extension point -------------------------------------------
+    # The single v1 ingester (the Excel bridge, AC4/AC5.2) runs here. No
+    # registry — one explicit call. Until then there is nothing to sync.
+    # -----------------------------------------------------------------------
+    return SyncResult(sources_synced=0, entries_ingested=0)
