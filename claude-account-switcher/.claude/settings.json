@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(spec/)",
+      "Write(spec/)"
+    ]
+  }
+}
