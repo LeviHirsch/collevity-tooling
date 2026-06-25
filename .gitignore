@@ -1,0 +1,18 @@
+# OS cruft
+.DS_Store
+
+# Office binaries — keep the repo text-only
+*.xlsm
+*.xlsx
+*.xls
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local env / secrets — never commit auth state or tokens
+.env
+.credentials.json
+*.token
