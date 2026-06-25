@@ -1,0 +1,22 @@
+[project]
+name = "collevity-entry-store"
+version = "0.1.0"
+description = "Collevity Entry Store — logical entry schema + thin storage seam over an append-dominant JSONL pool (Phase 1: schema + storage seam, Excel-blind)."
+requires-python = ">=3.11"
+# UUIDv7 is not in the stdlib `uuid` module (slated for 3.14); `uuid6` is pure
+# Python, returns a stdlib `uuid.UUID`, and drops natively into a future
+# Postgres `uuid` column (DEC-010, AC1.2). Chosen over uuid-utils (binary wheel,
+# speed irrelevant at single-user scale) — see DEC-021.
+dependencies = [
+    "uuid6>=2024.1.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["entry_store"]

@@ -127,3 +127,9 @@ These join the existing aux fields, each with a distinct job: **`tags`** = ad-ho
 **Decision:** Converged at `7c57537` (Revision 6) on 2026-06-24.
 **Rationale:** Two consecutive wording-only revisions (R4→R5, R5→R6); the last structural change (R4, the `sync_sources` seam) is two revisions back. Five review rounds (R1–R5 critiques); R5's round returned all three personas declaring the spec sound / ship-ready with only cosmetic doc nits, which R6 absorbed. Human-judged converged by Levi.
 **Context:** via /spec check (iteration 1).
+
+## DEC-021 — UUIDv7 library = `uuid6` (Phase-1 build prerequisite)
+**Decision:** The store seam mints UUIDv7 ids via the pure-Python **`uuid6`** package (`uuid6.uuid7()`), pinned `>=2024.1.12` (resolved to 2025.0.1). Resolves the AC1.2 / DEC-010 build prerequisite — UUIDv7 is not in the Python stdlib `uuid` module (slated for 3.14).
+**Rationale (Levi):** `uuid6.uuid7()` returns a stdlib `uuid.UUID`, so the value drops natively into a future Postgres `uuid` column (DEC-010's stated reason for UUIDv7 over ULID) with no custom type, and `str()` gives the canonical id. Pure Python = no binary wheel, no compiler, no iCloud/install friction. Speed is the only axis where `uuid-utils` wins, and it is irrelevant at single-user, low-frequency append rate — so the binary-wheel cost buys nothing.
+**Rejected:** `uuid-utils` (Rust/PyO3 binary wheel; speed advantage moot here); vendored ~30-line RFC-9562 v7 (zero deps, but code to own/test for no benefit over a one-line, maintained dependency).
+**Context:** via /spec implement (iteration 1), Phase 1 kickoff. Levi chose `uuid6` from the surfaced fork. Realizes AC1.2 / DEC-010.
