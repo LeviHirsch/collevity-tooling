@@ -122,3 +122,8 @@ These join the existing aux fields, each with a distinct job: **`tags`** = ad-ho
 **Rationale (Levi):** Review (ontologist R4, most-load-bearing) flagged the composition as load-bearing but *unstated* — a consumer skipping sync silently reads stale data. Resolved by stating the contract rather than building enforcement: surfacing/checking staleness inside `read_day` would re-couple it to ingestion, undoing DEC-018's whole point. Single-user + one v1 consumer makes a documented contract sufficient.
 **Rejected:** `read_day` checks/surfaces staleness (re-couples read to sync — contradicts DEC-018); enforcement machinery (over-built for one consumer).
 **Context:** via /spec revise (iteration 1), R4 review. Refines DEC-018 (`read_day` pure) and DEC-013 (op-path composition); folded into AC5.1.
+
+## DEC-020 — Spec converged
+**Decision:** Converged at `7c57537` (Revision 6) on 2026-06-24.
+**Rationale:** Two consecutive wording-only revisions (R4→R5, R5→R6); the last structural change (R4, the `sync_sources` seam) is two revisions back. Five review rounds (R1–R5 critiques); R5's round returned all three personas declaring the spec sound / ship-ready with only cosmetic doc nits, which R6 absorbed. Human-judged converged by Levi.
+**Context:** via /spec check (iteration 1).
