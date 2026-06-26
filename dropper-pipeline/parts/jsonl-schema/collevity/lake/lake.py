@@ -166,9 +166,11 @@ def _local_day(created_at: str) -> date_cls:
 def _local_time_hm(created_at: str) -> str:
     """Local wall-clock time as 'HH:MM' for the read_day output (AC3.1).
 
-    NOTE: format parity target is `read_dropper_day.py` ({text, time} per day),
-    which is not present in this repo. 'HH:MM' is the assumed shape; confirm
-    against that script at /spec verify and adjust here (single source of truth).
+    Parity confirmed (DEC-013, /spec verify iteration 1): the legacy reader
+    `~/.claude/skills/checkin/read_dropper_day.py:62` emits each entry's time via
+    `dt.strftime('%H:%M')` — identical to the shape here. (The script lives in the
+    /checkin skill folder, outside this repo, which is why earlier passes could
+    not see it.) read_day surfaces the same {text, time} fields the old reader did.
     """
     return datetime.fromisoformat(created_at).strftime("%H:%M")
 
