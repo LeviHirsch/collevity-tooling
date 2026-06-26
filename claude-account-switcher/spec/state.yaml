@@ -1,12 +1,12 @@
 schema_version: 1
 iteration: 1
 mode: greenfield
-phase: seeded
+phase: in-review
 started_at: 2026-06-25T17:17:00
-last_command: /spec seed
-last_command_at: 2026-06-26T00:00:00
-spec_sha: null
+last_command: /spec review
+last_command_at: 2026-06-26T19:23:00
+spec_sha: d005fd5
 latest_interview: spec/archive/v001-2026-06-25-1717-interview.md
-latest_review_stamp: null
+latest_review_stamp: v001-2026-06-26-1923
 latest_verify: null
 phases_implemented: []
