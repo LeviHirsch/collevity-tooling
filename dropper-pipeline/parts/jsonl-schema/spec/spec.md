@@ -25,7 +25,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 
 - (a) A drop from each live channel (Excel bridge, and the reserved claude-hook shape) lands as a valid record carrying the required floor (`id`, `text`, `created_at`, `source`, `author`).
 - (b) `/checkin` reading JSONL via `read_day` matches Excel-era output *format* for the same day (the tz mis-bucketing is corrected at source, not reproduced).
-- (c) The 852 Excel rows ingest idempotently: re-running the bridge produces no duplicates, and a text edit on an Excel row propagates as an update (not a new entry).
+- (c) The legacy Excel rows ingest idempotently: re-running the bridge produces no duplicates, and a text edit on an Excel row propagates as an update (not a new entry).
 - (d) Local-day bucketing: evening / late-night drops appear on the day they were made (local-day-of-offset), not the next UTC day.
 
 ## Out of scope
@@ -68,7 +68,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 - AC4.1. A bridge ingests Excel rows into the JSONL pool reading **only `{text, drop-timestamp (col E)}`** and **explicitly ignoring the `modified` column** (recorded ignore-rule protocol). (→ DEC-011, constraint Excel-blind)
 - AC4.2. A persistent sidecar mapping (e.g. `excel-ingest-state.json`) keys each Excel row (by drop-timestamp, sub-second tiebreaker by row index — col-E timestamp stability across saves is assumed under the single-file regime, DEC-016) → the JSONL `id` created + a snapshot of the last-ingested text; the bridge then reads/writes the pool **through the storage seam, keyed by that `id`** (not raw line-matching). A row lacking a usable timestamp key **fails loudly** — the run aborts with an error naming the offending row, no partial ingest — rather than mis-mapping silently. (→ DEC-011, DEC-016, DEC-005, success (c))
 - AC4.3. Snapshot reconciliation per run: a new row → `append_entry`; text changed vs snapshot → `edit_entry` on the mapped `id`; unchanged → skip — yielding idempotent re-runs and edit propagation. (→ success (c), DEC-011)
-- AC4.4. After a **one-time tz backfill**, every legacy row carries the correct offset: ongoing rows stamped EDT (`-04:00`); the MDT minority carries `-06:00`. The backfill is one-shot — no ongoing tz logic, no `source_data` timestamp stash. The Phase-2 deliverable is the EDT stamping + backfill machinery; *identifying* which legacy rows were MDT is the open **input** (Open Question 1), not part of this deliverable. (→ DEC-013, success (c))
+- AC4.4. After a **one-time tz backfill**, every legacy row carries the correct offset: ongoing rows stamped EDT (`-04:00`); the MDT minority carries `-06:00`. The backfill is one-shot — no ongoing tz logic, no `source_data` timestamp stash. The Phase-2 deliverable is the EDT stamping + backfill machinery; *identifying* which legacy rows were MDT is the resolved **input** (Open Question 1, resolved by DEC-023/DEC-024 — a mid-June Colorado round-trip, not a permanent move), not part of this deliverable. (→ DEC-013, success (c))
 - AC4.5. Bridge and sidecar are fully self-contained: deleting them leaves the core JSONL and schema untouched, and unregisters the bridge from `sync_sources` (AC5) with no effect on `read_day` (Excel-blind verification). (→ DEC-011, DEC-018, constraint Excel-blind)
 - AC4.6. The Excel bridge's ingestion runs **under `sync_sources`** (AC5), **idempotent within a session** (duplicate count never grows), with **no daemon and no cron**. It is `sync_sources`'s only v1 registered ingester and is removed when Excel is retired (AC4.5). (→ DEC-018, DEC-015, success (c))
 
@@ -100,7 +100,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 - AC5.1
 
 ### Phase 2. Excel bridge + legacy migration
-**Delivers:** Excel remains a live capture channel during transition — the 852 legacy rows plus ongoing Excel drops/edits ingest idempotently into the JSONL pool via an Excel-blind bridge and sidecar (writing through the seam), with the one-time tz backfill; the bridge is registered as the sole v1 ingester under `sync_sources` (no daemon/cron, idempotent), and is removed cleanly when Excel retires.
+**Delivers:** Excel remains a live capture channel during transition — the legacy rows plus ongoing Excel drops/edits ingest idempotently into the JSONL pool via an Excel-blind bridge and sidecar (writing through the seam), with the one-time tz backfill; the bridge is registered as the sole v1 ingester under `sync_sources` (no daemon/cron, idempotent), and is removed cleanly when Excel retires.
 **Depends on:** Phase 1 (the schema + `append_entry`/`edit_entry` seam the bridge writes through, and the `sync_sources` boundary the bridge registers under).
 **Prerequisite:** Open Question 1 (MDT-row identification) resolved before the one-time backfill (AC4.4) runs.
 - AC4.1
@@ -113,7 +113,7 @@ Define the canonical field-level shape of a Collevity entry and the thin storage
 
 ## Open questions
 
-- **MDT-row identification mechanism** (feeds AC4.4): the mechanism for identifying *which* of the 852 legacy rows were entered during MDT (vs. EDT) is unresolved — a defined approach (date-range heuristic, manual list, or an AI pass over the raw timestamps) is needed before the one-time backfill runs. Kept deferred as a migration-runbook detail; does not block sealing the spec (DEC-013).
+- **MDT-row identification mechanism** (feeds AC4.4): **RESOLVED** (DEC-023 mechanism, DEC-024 result). A text+timestamp classification pass over the move-window rows resolved it: the MDT rows are a **mid-June Colorado round-trip** (Jun 15 08:42 → Jun 17 14:49, 7 rows), not a permanent Mountain→Eastern move; every other legacy row is EDT. The disposable `backfill_mdt_tz` script stamps exactly those rows `-06:00`.
 - **Excel-row deletion** is an explicitly unhandled gap (a deleted Excel row leaves a lingering JSONL entry); accepted for single-user, revisit only if it bites (DEC-011, DEC-013).
 - **Offline-first surface-local id reconciliation** is deferred — v1 only commits "canonical id assigned on append"; the pre-sync identity pattern is revisited when a surface needs it. When it arrives it will be a **pull source registered under `sync_sources`** (AC5.2) — the seam already names its home; the reconciliation logic itself is the deferred part (DEC-010, DEC-018).
 - **Read-side `source` filter** to keep hook drops from flooding the daily view is flagged as an op-path/consumer concern for hook go-live, not a schema change (DEC-013).
