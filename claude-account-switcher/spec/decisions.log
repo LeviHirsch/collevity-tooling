@@ -1,0 +1,53 @@
+# Iteration 1
+
+## DEC-001 — Credential primitive = setup-token OAuth token via CLAUDE_CODE_OAUTH_TOKEN
+- **Decision:** The portable credential artifact is the 1-year OAuth token string produced by
+  `claude setup-token`, injected per-process via the `CLAUDE_CODE_OAUTH_TOKEN` env var. NOT a
+  keychain/`.credentials.json` transplant.
+- **Rationale:** Verified on CLI v2.1.193 — setup-token prints a standalone token, writes no
+  credential file, and `auth status` does not treat the slot as logged in. The token is an
+  inherently portable bearer string; this dissolves the cross-platform keychain-vs-file divergence.
+- **Alternatives ruled out:** keychain-item transplant; `.credentials.json` transplant; full
+  interactive `auth login` per slot (browser every use). Token-env-var beats all on portability +
+  browser-decoupling + cross-platform parity.
+- **Context:** via /spec interview (iteration 1), OPEN #1, after Levi's isolated setup-token test.
+- **Open dependency — RESOLVED:** `CLAUDE_CODE_OAUTH_TOKEN=<tok> claude auth status` returns
+  `loggedIn:true, authMethod:oauth_token` but **NO email**. Env-token auth works, but per-launch
+  email verification via `auth status` is NOT available. → Verification (#4) shifts to mint-time
+  identity capture + liveness signal. (See interview transcript; revisit in #4 ACs.)
+
+## DEC-002 — v1 boundary = portable core, macOS-verified
+- **Decision:** v1 ships N accounts, CLI tabs + SDK launch, slots = `CLAUDE_CONFIG_DIR` + bound
+  `CLAUDE_CODE_OAUTH_TOKEN`. Mechanism built platform-agnostically and **verified on macOS**.
+  Linux/WSL documented as "expected to work, same mechanism, untested." Windows/PowerShell
+  **explicitly deferred** to ride with the team-provisioning layer.
+- **Rationale:** token-string credential dissolves the keychain-vs-file cross-platform risk, so the
+  core is portable cheaply; but Levi can't verify Windows (on mac), and Windows mainly serves the
+  already-deferred team layer. Verified-facts-only discipline → don't claim untested platforms.
+- **Alternatives ruled out:** (a) thin 2-account mac-only proof — guts the SDK point, which is the
+  objective; mac+Linux-both-verified — extra setup for marginal v1 value; full Windows now — pulls
+  deferred team layer forward, unverifiable now.
+- **Context:** via /spec interview (iteration 1), OPEN #9.
+
+## DEC-003 — Architecture splits by surface: env-token (SDK) + sequential switch (interactive)
+- **Decision:** Concurrency is required only for SDK/headless agents, delivered by the oat token via
+  `CLAUDE_CODE_OAUTH_TOKEN` per process (PROVEN). Interactive sessions do NOT honor the env token
+  (observed) and don't need concurrency — interactive uses whole-environment **sequential**
+  switching. The macOS concurrent-stored-login question is therefore moot.
+- **Rationale:** Empirically, `-p`/SDK runs use the env token; an interactive launch with the same
+  token ran the login wizard instead. Levi confirmed sequential interactive is acceptable (his
+  alias already does it).
+- **Alternatives ruled out:** forcing concurrent interactive on macOS (blocked by single shared
+  Keychain item; unnecessary given the steer).
+- **Context:** via /spec interview (iteration 1), architecture pivot from the setup-token tests.
+
+## DEC-004 — Interactive switch mechanism = reauth (`auth login`) for v1
+- **Decision:** v1 interactive switching uses the official reauth flow (`claude auth login [--email]`).
+  The no-reauth credential-blob swap (swap Keychain `claudeAiOauth` + `oauthAccount`) is **deferred**
+  to a future iteration (see deferred.md D-001).
+- **Rationale:** reauth is robust, self-verifying (login UI shows account), survives CLI updates, and
+  is trivial to build/distribute. No-reauth swap depends on undocumented Keychain/JSON internals
+  Anthropic can change — unacceptable fragility for a *distributable* tool's backbone. Levi confirmed.
+- **Alternatives ruled out (for v1):** no-reauth blob-swap as the default mechanism (fragile,
+  spoof-prone, higher maintenance) — preserved as a deferred enhancement, not discarded.
+- **Context:** via /spec interview (iteration 1).
