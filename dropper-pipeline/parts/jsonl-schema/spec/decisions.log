@@ -152,3 +152,9 @@ These join the existing aux fields, each with a distinct job: **`tags`** = ad-ho
 **Consequences for the two flagged spec-drifts (DEC-023 grounding):** (a) the stale "852 rows" count is dropped from the spec entirely (point-in-time, already drifted 852→935→940) rather than chased; (b) the "MDT **minority**" wording (AC4.4 / DEC-013) is **confirmed correct** — 7 of 940 — and the "Mountain→Eastern move" framing in DEC-023's grounding note is corrected to "round-trip." The backfill window lives as constants in the disposable `bridges/backfill_mdt_tz.py`.
 **Rationale (Levi):** the round-trip read fits the entries far better than a one-way move; pinning the exact window from Levi's own in-entry tz notes makes the one-shot backfill auditable and bounded.
 **Context:** via /spec reconcile (iteration 1), Phase 2 build session. Resolves Open Question 1; refines AC4.4 and DEC-023.
+
+## DEC-025 — Iteration 1 closed
+**Iteration:** 1
+**Decision:** Closed iteration 1 at spec.md SHA `b8629e7`.
+**Rationale:** 0 accepted gaps (all 28 AC nodes PASS; 39 tests; live migration ran); details in archive/v001-2026-06-26-1917-takeaway.md.
+**Context:** auto-logged during /spec close (iteration 1)
