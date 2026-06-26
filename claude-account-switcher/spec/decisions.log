@@ -41,6 +41,23 @@
   Keychain item; unnecessary given the steer).
 - **Context:** via /spec interview (iteration 1), architecture pivot from the setup-token tests.
 
+## DEC-005 — Capture/binding trust model = human attestation at mint, scope-forced
+- **Decision:** The setup-token oat carries `user:inference` ONLY (no `user:profile`), so scripted
+  email-readback is structurally impossible. v1 binds `label→email` **once at mint by human
+  attestation**, made reliable by the consent page's account display ("Logged in as <email>") +
+  Switch-account affordance, optionally hardened by routing the captured OAuth URL into a
+  logged-out/incognito context to force deliberate account selection. The secret (oat string) is
+  auto-captured from setup-token stdout; the email is **retyped + confirmed** by the human at
+  capture (the tool cannot auto-read it — browser-side, and the oat lacks profile scope).
+- **Rationale:** verified 2026-06-26 — two mint runs showed the consent page names the account and
+  incognito enforces explicit login; token scope is inference-only. Binding is permanent because an
+  oat cannot change accounts after mint. Only residual mis-bind risk = fat-fingering the email →
+  mitigated by retype-confirm.
+- **Alternatives ruled out:** scripted profile-endpoint readback (impossible — scope); `.claude.json`
+  cache readback (impossible — token-auth never caches profile); userID fingerprint (dead —
+  per-config-dir, not account-keyed). No verification spike needed.
+- **Context:** via /spec interview (iteration 1), OPEN #4, after Levi's instrumented mint test.
+
 ## DEC-004 — Interactive switch mechanism = reauth (`auth login`) for v1
 - **Decision:** v1 interactive switching uses the official reauth flow (`claude auth login [--email]`).
   The no-reauth credential-blob swap (swap Keychain `claudeAiOauth` + `oauthAccount`) is **deferred**
@@ -51,3 +68,24 @@
 - **Alternatives ruled out (for v1):** no-reauth blob-swap as the default mechanism (fragile,
   spoof-prone, higher maintenance) — preserved as a deferred enhancement, not discarded.
 - **Context:** via /spec interview (iteration 1).
+
+## DEC-006 — Credential store = local per-user file, record-per-label, no sync
+- **Decision:** oats live in a **per-user local file outside the repo AND outside iCloud** (e.g.
+  `~/.collevity/…` or `~/.config/claude-account-switcher/`), JSON **record-per-label**
+  (`{email, oat, …}` — option 3 minimal seam), `chmod 600`. The non-secret **registry**
+  (label→email, settings, profile associations) is conceptually separable and may sync freely; only
+  the **oat** is the protected secret. v1 does NOT sync the secret. The store-backend abstraction
+  (for 1Password/`op`) is **deferred** ("not there yet"). Encryption-at-rest is **deferred** —
+  FileVault + `600` perms is the v1 at-rest posture.
+- **Rationale:** portability (mac + Linux identical — upholds DEC-002), simplicity, zero runtime
+  deps, and the secret never touches a versioned or synced tree. `.gitignore` does NOT stop iCloud
+  sync (independent mechanisms) → safety comes from *physical location*, not ignore rules. iCloud
+  multi-device sync of the secret rejected for v1: plaintext bearer token on Apple's cloud + every
+  synced device, and a bad default for a *distributable* tool (would stash Levi's account token in an
+  employee's iCloud). Reconsiderable later only WITH encryption-at-rest (see D-003). Mitigating
+  factor: oats are Levi's own accounts, inference-scoped, fast to revoke + re-mint.
+- **Alternatives ruled out:** macOS Keychain (mac-only — breaks portability; clunky record/metadata
+  story); 1Password/`op` now (heavy dependency in every SDK launch path — reserved as the team-layer
+  backend behind a future abstraction); iCloud-synced plaintext secret (blast radius + unsafe
+  default); building the store-backend abstraction now (deferred, avoid unused machinery).
+- **Context:** via /spec interview (iteration 1), STORE axis. Levi: "I'm fine with local for now."
