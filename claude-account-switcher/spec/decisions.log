@@ -114,3 +114,15 @@
   a possible power-user `env` extra, deferred); a single verb spanning both surfaces (conflates
   concurrent-vs-sequential semantics).
 - **Context:** via /spec interview (iteration 1), slot/command-surface axis.
+
+## DEC-008 — Phase ordering: `run` before management verbs (`list`/`use`/`rm`)
+- **Decision:** Phase 3 delivers `run` alone; Phase 4 groups `list`, `use`, and `rm` together as management verbs after the concurrency deliverable is complete.
+- **Rationale:** `run` is the primary capability the tool exists to provide; it is independently implementable and testable once records exist (Phase 2). Making it its own phase ensures the core SDK-concurrency deliverable can be demonstrated before any management polish is layered on. Completing it first also gives the implementer a working tool at the earliest possible point.
+- **Alternative ruled out:** combining `run`, `list`, `use`, and `rm` into one phase after `add`. Rejected because it inflates Phase 3 unnecessarily and delays the first end-to-end runnable state; the management verbs are independent from each other and from `run`, so there is no dependency forcing them to ship together.
+- **Context:** via /spec seed (iteration 1), phase-ordering step.
+
+## DEC-009 — AC structuring: verification embedded within commands, not a standalone AC group
+- **Decision:** Verification-related acceptance criteria (liveness check at `add`, label→email echo at `run`, dead-token error at `run`) are placed within the respective command ACs (AC2.5, AC3.3, AC3.6) rather than as a top-level `AC-Verification` cluster.
+- **Rationale:** each verification behavior is only testable in the context of the command that exercises it; separating them into a standalone group would force cross-referencing and make the AC tree less independently testable at the leaf level.
+- **Alternative ruled out:** a top-level `AC-Verification` group with sub-criteria referencing back to command ACs. Rejected as it would violate the MECE mutual-exclusivity requirement (verification behaviors would appear in two places) or force the command ACs to omit the testable verification steps.
+- **Context:** via /spec seed (iteration 1), AC-structuring step.

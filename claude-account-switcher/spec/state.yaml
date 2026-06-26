@@ -1,9 +1,9 @@
 schema_version: 1
 iteration: 1
 mode: greenfield
-phase: interviewing
+phase: seeded
 started_at: 2026-06-25T17:17:00
-last_command: /spec interview
+last_command: /spec seed
 last_command_at: 2026-06-26T00:00:00
 spec_sha: null
 latest_interview: spec/archive/v001-2026-06-25-1717-interview.md
