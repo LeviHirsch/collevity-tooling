@@ -89,3 +89,28 @@
   backend behind a future abstraction); iCloud-synced plaintext secret (blast radius + unsafe
   default); building the store-backend abstraction now (deferred, avoid unused machinery).
 - **Context:** via /spec interview (iteration 1), STORE axis. Levi: "I'm fine with local for now."
+
+## DEC-007 — Command surface = surface-split verbs, runner (not env-export) for SDK
+- **Decision:** CLI named **`claude-switch`** (canonical, for written/non-coder direction) + **`cas`**
+  (symlink alias). Verbs:
+  - `add <label>` — guided mint (logged-out browser), **retype-confirm email**, liveness-check the
+    fresh oat, store record + create the slot's config dir. Label **defaults to the email local-part**
+    (fs-safe), user override allowed; labels must be **unique** (= store key AND config-dir name;
+    collision forces a custom label).
+  - `list` — slots: label, email, oat age/health, and which account is the **active interactive
+    login** (matched via `auth status` email → label).
+  - `run <label> -- <cmd…>` — SDK/headless: launch the child with `CLAUDE_CONFIG_DIR=<slot>` +
+    `CLAUDE_CODE_OAUTH_TOKEN=<oat>` injected **for that process only** (runner pattern). Concurrency
+    deliverable; echoes "running as `<label>` (`<email>`)".
+  - `use <label>` — interactive: sequential whole-env switch via `claude auth login --email` (DEC-004).
+  - `rm <label>` — drop from store + guide server-side revoke (single-scope `user:inference` rule).
+- **Rationale:** the surface splits along the architecture — SDK is a per-process **runner** that
+  never mutates the shell (satisfies the zero-shell-disruption non-negotiable and makes concurrency
+  collision-free); interactive is a sequential global switch. Runner beats env-printer on token
+  hygiene: the oat's lifetime = the child process, never entering shell env/history, no manual unset,
+  no cross-slot race. Each slot = per-label config dir (`~/.collevity/slots/<label>/`) + bound oat.
+- **Alternatives ruled out:** env-printer (`eval "$(cas env <label>)"`) as the default — leaks the
+  year-long oat into the shell env + history, needs manual `unset`, races across slots (preserved as
+  a possible power-user `env` extra, deferred); a single verb spanning both surfaces (conflates
+  concurrent-vs-sequential semantics).
+- **Context:** via /spec interview (iteration 1), slot/command-surface axis.
