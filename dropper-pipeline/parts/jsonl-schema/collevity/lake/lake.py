@@ -222,14 +222,26 @@ class SyncResult:
 
 
 def sync_sources() -> SyncResult:
-    """Bring pull-based sources current. No-op in Phase 1 (no ingesters yet).
+    """Bring pull-based sources current.
 
-    The boundary exists so consumers can already write the
-    `sync_sources(); read_day()` composition (DEC-019) — it simply has nothing
-    to pull until the Excel bridge registers under it in Phase 2.
+    v1 has exactly one registered ingester — the Excel bridge (AC4/AC5.2). There
+    is deliberately NO multi-source registry (DEC-018): the bridge is wired in by
+    one explicit, lazy import below. The import tolerates the bridge being absent,
+    so deleting `bridges/` retires the ingester and reverts this to a zero-work
+    no-op with no edit here (AC4.5 clean-delete). `read_day` stays a pure read;
+    this op is the only place ingest happens (DEC-018).
     """
     # --- Phase 2 extension point -------------------------------------------
-    # The single v1 ingester (the Excel bridge, AC4/AC5.2) runs here. No
-    # registry — one explicit call. Until then there is nothing to sync.
+    # The single v1 ingester (the Excel bridge, AC4/AC5.2). One explicit call,
+    # no registry. Lazy import keeps the core Excel-blind and makes the bridge
+    # cleanly deletable: ImportError → nothing to sync (back to the Phase-1 no-op).
+    try:
+        from .bridges import excel
+    except ImportError:
+        return SyncResult(sources_synced=0, entries_ingested=0)
     # -----------------------------------------------------------------------
-    return SyncResult(sources_synced=0, entries_ingested=0)
+    if not excel.source_present():
+        # Bridge registered, but no Dropper to pull → zero work, like Phase 1.
+        return SyncResult(sources_synced=0, entries_ingested=0)
+    ingested = excel.ingest()
+    return SyncResult(sources_synced=1, entries_ingested=ingested)

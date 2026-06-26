@@ -12,7 +12,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "openpyxl>=3.1"]
+# The Excel bridge (Phase 2, AC4) is throwaway transition scaffolding — keep the
+# core dep-light by making its xlsx reader an OPTIONAL extra (AC4.5). The core
+# never imports openpyxl; the bridge imports it lazily.
+excel = ["openpyxl>=3.1"]
 
 [build-system]
 requires = ["hatchling"]

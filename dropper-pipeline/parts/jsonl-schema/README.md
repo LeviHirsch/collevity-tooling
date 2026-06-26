@@ -10,8 +10,9 @@ not exist. (The future second database, the Collevity Data Strata, will be
 - **Spec (source of truth):** `spec/spec.md`, `spec/decisions.log` (DEC-001..021).
 - **Field contract:** `SCHEMA.md`.
 
-> **Status: Phase 1 implemented** — schema + storage seam (the core).
-> Phase 2 (Excel bridge + legacy migration) is not built yet.
+> **Status: Phase 2 implemented** — Excel bridge + legacy migration, on the
+> Phase-1 core. The bridge (`collevity/lake/bridges/`) is throwaway transition
+> scaffolding; the core stays Excel-blind.
 
 ## The seam (the only access path — AC2.3, DEC-005)
 
@@ -59,8 +60,28 @@ python3 -m venv .venv
 
 UUIDv7 ids come from the `uuid6` library (not in the stdlib; DEC-021).
 
-## What Phase 1 does NOT include
+## Phase 2 — the Excel bridge (transition scaffolding)
 
-The Excel bridge, sidecar, legacy tz backfill, and the registered `sync_sources`
-ingester are **Phase 2** (`spec/spec.md` → Implementation phases). `sync_sources`
-here is the boundary only — no ingesters registered.
+All Excel knowledge lives in `collevity/lake/bridges/` (deletable → AC4.5). The
+core never imports `openpyxl`; the bridge imports it lazily, and it's an
+**optional** install extra (`pip install -e '.[excel]'`).
+
+```sh
+# one-time migration + ongoing sync of the live Dropper into the lake
+export COLLEVITY_LAKE="$HOME/Library/Mobile Documents/com~apple~CloudDocs/00_COLLEVITY/03_TACTIC/_DATA/collevity_lake.jsonl"
+python -m collevity.lake.bridges.excel          # idempotent — safe to re-run
+python -m collevity.lake.bridges.backfill_mdt_tz  # RUN ONCE, then delete the script
+```
+
+- **Bridge** (`bridges/excel.py`): reads only col D (`text`) + col E
+  (drop-timestamp), ignores col F (`modified`); writes through the seam; keys
+  rows in a sidecar (`excel-ingest-state.json`, beside the lake) for idempotent
+  re-runs + edit propagation. Runs under `sync_sources` — the sole v1 ingester.
+- **tz backfill** (`bridges/backfill_mdt_tz.py`): one-shot, disposable. The bridge
+  stamps every row EDT; this stamps the mid-June Colorado-trip rows `-06:00`.
+  Delete it after running.
+- **Retire Excel:** delete `collevity/lake/bridges/`. `sync_sources` reverts to a
+  zero-work no-op (lazy import → `ImportError` → nothing to sync); core untouched.
+
+The Dropper path defaults to the live iCloud file; override with
+`COLLEVITY_DROPPER_XLSM`.
