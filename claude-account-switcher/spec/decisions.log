@@ -197,3 +197,18 @@
   best-effort implementation-discovery tasks, each with a guaranteed fallback, so neither blocks
   implementation. Levi declared convergence.
 - **Context:** via /spec check (iteration 1).
+
+## DEC-014 — AC6.2 scope-count corrected to stable scope markers
+- **Decision:** AC6.2's device-login identifier changed from the brittle "(5-scope entries with
+  `user:sessions:claude_code`)" to "recognizable by `user:sessions:claude_code` and `user:profile` in
+  the scope list (the setup-token oat has neither — it is `user:inference`-only)." Drops the
+  point-in-time scope count in favor of stable scope-name markers.
+- **Rationale:** verified 2026-06-26 from a live `claude auth login --email` authorize URL — the
+  device-login token requests SIX scopes (`org:create_api_key`, `user:profile`, `user:inference`,
+  `user:sessions:claude_code`, `user:mcp_servers`, `user:file_upload`), not five. The exact count is
+  both wrong and fragile to future Anthropic scope changes; keying off scope *names* is stable and
+  upholds the no-point-in-time-counts-in-criteria principle. This also re-confirms the core AC6.2
+  distinction (device-login is multi-scope incl. `user:sessions:claude_code`; the revocable oat is
+  `user:inference`-only).
+- **Bucket:** 2 (minor spec edit — no assertion change, no AC added/removed; phase stays `converged`).
+- **Context:** during /spec reconcile (iteration 1).

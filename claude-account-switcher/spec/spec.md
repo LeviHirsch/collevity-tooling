@@ -85,7 +85,7 @@ Decouple Claude account authorization from the browser session — making it an 
 ### AC6. `rm` — drop record and guide revocation
 
 - **AC6.1.** `rm <label>` removes the record from the store and prints confirmation of the deletion.
-- **AC6.2.** The tool prints step-by-step server-side revocation guidance: navigate to Settings → Claude Code → Authorization tokens; identify the correct entry by its `user:inference`-only scope and the mint date shown by `list`; warns explicitly NOT to revoke multi-scope device-login entries (5-scope entries with `user:sessions:claude_code`).
+- **AC6.2.** The tool prints step-by-step server-side revocation guidance: navigate to Settings → Claude Code → Authorization tokens; identify the correct entry by its `user:inference`-only scope and the mint date shown by `list`; warns explicitly NOT to revoke multi-scope device-login entries, recognizable by the presence of `user:sessions:claude_code` and `user:profile` in the scope list (the setup-token oat has neither — it is `user:inference`-only).
 - **AC6.3.** As part of `rm`, the slot config dir `~/.collevity/slots/<label>/` is deleted unconditionally (the dir holds no secret — the oat lives in the store record being removed — and is regenerable by re-running `add`); the deletion is reported to the user.
 - **AC6.4.** If `<label>` does not exist in the store, the command fails with a clear error.
 
