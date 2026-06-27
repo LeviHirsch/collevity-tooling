@@ -1,7 +1,7 @@
 # claude-account-switcher — Specification
 
 > Status: draft
-> Revision: 2
+> Revision: 3
 > Last updated: 2026-06-26
 
 ## Goal
@@ -53,7 +53,7 @@ Decouple Claude account authorization from the browser session — making it an 
 ### AC2. `add` — guided mint, capture, and bind
 
 - **AC2.1.** `add <label>` (or `add` with no label, defaulting to the email local-part after confirmation) launches `claude setup-token` as a subprocess in a temporary isolated `CLAUDE_CONFIG_DIR` and captures the printed OAuth URL from its stdout (verified: `setup-token` prints the URL to stdout — DEC-010).
-- **AC2.2.** The tool routes the captured OAuth URL into a browser for approval. On macOS with Chrome available: it lists the Chrome profiles (name + Google email, read from Chrome's local state), lets the user select one, brings that profile's window to the front, then opens the URL in it; the selected profile is recorded in the record's `mint_profile` field. On any other platform, when Chrome is unavailable, or when the user declines profile selection: the tool opens the URL in the default browser and also prints it for manual paste into a logged-out/incognito window. The chosen path is announced to the user. No persistent profile↔account association or auto-reuse is performed (deferred, D-002).
+- **AC2.2.** The tool routes the captured OAuth URL into a browser for approval so the user authorizes in a deliberately chosen context. On macOS with Chrome, it offers to open the URL in a user-selected Chrome profile (presenting the available profiles so the user can pick one). The consent page (AC2.3) remains the authority on which account is being authorized — a Chrome profile's identity (its Google login) need not match the Claude account, so the profile list is a convenience for choosing a context, not an account cross-check. If a profile cannot be listed or targeted for any reason — non-macOS, Chrome absent, the chosen profile has no open window, unreadable profile data, or the user declines — the tool falls back to printing the URL for the user to open or paste into the context they want. The chosen path is announced to the user. (The mechanism for targeting a profile is an implementation-discovery item, DEC-012; the print fallback is the guaranteed path.) No persistent profile↔account association or auto-reuse is performed (deferred, D-002).
 - **AC2.3.** The tool explicitly directs the user to read the consent page's "Logged in as `<email>`" display and use the Switch-account link if the wrong account is shown, before approving the authorization. (This is the account-selection step; it happens on the consent page before approval, distinct from the post-capture retype-confirm at AC2.6.)
 - **AC2.4.** The oat string is auto-scraped from `setup-token`'s stdout (verified: the `sk-ant-oat01-…` token prints to stdout after auth — DEC-010); the user is never asked to copy or paste the oat.
 - **AC2.5.** After token capture, the tool runs a liveness check (`CLAUDE_CODE_OAUTH_TOKEN=<oat> claude auth status` in a fresh config dir) and confirms `loggedIn: true, authMethod: "oauth_token"` before proceeding; a failed liveness check aborts `add` with a clear error.
@@ -164,7 +164,7 @@ Decouple Claude account authorization from the browser session — making it an 
 
 ## Open questions
 
-None blocking. The interview passed the clarity gate (2026-06-26) on all five core items, and the load-bearing CLI spike — whether `claude setup-token` prints the OAuth URL (and the oat) to stdout — was verified resolved (DEC-010; both print to stdout). One acknowledged implementation-discovery item remains (not a spec-level open question): whether a dead-oat failure produces a cleanly auth-specific signal at the child-process boundary — AC3.6 handles this as best-effort.
+None blocking. The interview passed the clarity gate (2026-06-26) on all five core items, and the load-bearing CLI spike — whether `claude setup-token` prints the OAuth URL (and the oat) to stdout — was verified resolved (DEC-010; both print to stdout). Two acknowledged implementation-discovery items remain (neither a spec-level open question, because each has a guaranteed fallback): (1) whether a dead-oat failure produces a cleanly auth-specific signal at the child-process boundary — AC3.6 handles this as best-effort, surfacing the child's stderr regardless; (2) whether a focus-then-open (or any) technique reliably lands the URL in the chosen Chrome profile — AC2.2 falls back to printing the URL either way (DEC-012).
 
 ## Deferred for cross-platform (tracked, not open)
 

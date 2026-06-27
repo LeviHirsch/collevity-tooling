@@ -1,9 +1,9 @@
 schema_version: 1
 iteration: 1
 mode: greenfield
-phase: in-review
+phase: revised
 started_at: 2026-06-25T17:17:00
-last_command: /spec review
+last_command: /spec revise
 last_command_at: 2026-06-26T21:44:00
 spec_sha: 9e77a28
 latest_interview: spec/archive/v001-2026-06-25-1717-interview.md

@@ -164,3 +164,26 @@
   Linux/other-browser equivalent or confirms the portable fallback suffices. Logged in spec's
   "Deferred for cross-platform" note.
 - **Context:** via /spec revise (iteration 1), Group D of the v001-2026-06-26-1923 review.
+
+## DEC-012 — AC2.2 reframed to requirement-level (refines DEC-011)
+- **Decision:** AC2.2 now states the *requirement* — offer to open the mint URL in a user-selected
+  Chrome profile, with a single graceful-degradation rule (any failure to list or target a profile →
+  print the URL for manual open/paste) — rather than mandating the focus-then-open OS mechanism. The
+  fallback is **print-only**; the earlier "auto-open default browser AND print" is dropped (auto-opening
+  a logged-in default browser fights the deliberate-context goal of minting). The focus-then-open
+  technique from DEC-011 is retained as the *candidate* implementation but is unverified; if it does
+  not reliably land the URL in the chosen profile, the print fallback is authoritative. A caveat is
+  added to AC2.2 that a Chrome profile's Google identity may differ from the Claude account, so the
+  consent page (AC2.3) remains the account authority. The "recorded in `mint_profile`" claim is removed
+  from AC2.2; AC2.7 solely owns that store-write.
+- **Rationale:** round-2 review (v001-2026-06-26-2144) — all three personas flagged the focus-then-open
+  mechanism as an unverified guarantee (ontologist + contrarian ranked it #1). Unlike the stdout
+  assumption (DEC-010, which had no fallback → required a spike), profile-routing degrades gracefully to
+  print, so it need not gate convergence or be guaranteed at the spec layer. Requirement-level phrasing
+  with one fallback rule absorbs three separate review hits at once: the no-open-window gap, Chrome
+  `Local State` path/schema instability across Chrome variants, and the routing-reliability uncertainty.
+- **Alternatives ruled out:** keeping the mechanism mandate in the AC (over-promises unverified
+  behavior); auto-open-default-browser in the fallback (unwanted logged-in session, wrong context for
+  mint); running the focus-then-open spike before converging (unnecessary given the working print
+  fallback — deferred to Phase 2 implementation discovery).
+- **Context:** via /spec revise (iteration 1), round-2 review (v001-2026-06-26-2144).
