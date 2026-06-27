@@ -1,0 +1,27 @@
+[project]
+name = "claude-account-switcher"
+version = "0.1.0"
+description = "Concurrent multi-account Claude Code tooling. Phase 1: per-user credential store, slot config-dir lifecycle, and label validation."
+requires-python = ">=3.11"
+# Phase 1 is stdlib-only (json, os, pathlib, dataclasses) — zero runtime deps,
+# which keeps the portable core (mac + Linux identical) dependency-free.
+dependencies = []
+
+# No [project.scripts] yet: the `claude-switch` / `cas` CLI entry points are
+# delivered in later phases (AC7.3). Phase 1 is the library substrate only.
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cas"]
+
+[tool.pytest.ini_options]
+# Flat layout: put the project root on sys.path so `import cas` resolves when
+# running pytest from this directory without an editable install.
+pythonpath = ["."]
+testpaths = ["tests"]
