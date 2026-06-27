@@ -27,9 +27,10 @@ start of each new iteration's interview.
 ## D-002 — Chrome-profile-as-account-anchor (onboarding + verification)
 - **Category:** enhancement / onboarding-layer
 - **Deferred since:** iteration 1
-- **Last touched:** iteration 1 (2026-06-26)
+- **Last touched:** iteration 1 (2026-06-26) — partially pulled forward; see "Now built in v1" below
 - **Defer count:** 1
 - **Source:** via /spec interview (iteration 1); Levi's Chrome-profile onboarding idea
+- **Now built in v1 (DEC-011):** Chrome-profile *enumeration + selection + open-the-mint-URL-in-the-chosen-profile* is now a v1 browser-routing convenience (AC2.2, macOS/Chrome), and the chosen profile is recorded in `mint_profile`. What remains deferred here is the **persistent profile↔account association, auto-reuse on future mint/reauth, and the onboarding flow** that ties them together.
 - **Description:** Enumerate the user's Chrome profiles (Chrome `Local State` exposes each profile's
   google email); onboarding associates a chosen Chrome profile with a chosen Claude account; launch
   that profile to mint/reauth in the correct cookie context (a robust, persistent replacement for

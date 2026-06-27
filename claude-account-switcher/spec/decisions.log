@@ -126,3 +126,41 @@
 - **Rationale:** each verification behavior is only testable in the context of the command that exercises it; separating them into a standalone group would force cross-referencing and make the AC tree less independently testable at the leaf level.
 - **Alternative ruled out:** a top-level `AC-Verification` group with sub-criteria referencing back to command ACs. Rejected as it would violate the MECE mutual-exclusivity requirement (verification behaviors would appear in two places) or force the command ACs to omit the testable verification steps.
 - **Context:** via /spec seed (iteration 1), AC-structuring step.
+
+## DEC-010 — CLI empirical verification: setup-token stdout + `auth login --email` flag
+- **Decision:** Two load-bearing CLI assumptions the review flagged as unverified are now confirmed
+  facts, baked into the ACs: (a) `claude setup-token` prints BOTH the OAuth URL and the resulting
+  `sk-ant-oat01-…` token to **stdout** (the URL while waiting, the token after auth) — so AC2.1/AC2.4
+  auto-scrape is real, not speculative; (b) `claude auth login --email <addr>` is a real, working flag
+  — so AC5.1's `use` mechanism is valid.
+- **Rationale:** verified 2026-06-26. (a) tested directly: `CLAUDE_CONFIG_DIR=$(mktemp -d) claude
+  setup-token 2>/dev/null` showed the URL, then the token after auth, with stderr suppressed —
+  proving both are on stdout. (b) confirmed by Levi's existing `claude-admin` alias, which is literally
+  `claude auth login --email admin@nascentech.com` in daily use.
+- **Resolves:** the review's #1 risk (ontologist + contrarian both ranked the stdout assumption the most
+  consequential unverified dependency); closes the only spec-level open question.
+- **Context:** via /spec revise (iteration 1), Group A of the v001-2026-06-26-1923 review.
+
+## DEC-011 — `add` browser-routing = Chrome-profile pick, portable fallback
+- **Decision:** The mint OAuth URL is routed to the browser by: on macOS with Chrome, listing the
+  Chrome profiles (name + Google email from Chrome's local state), letting the user select one,
+  bringing that profile's window to the front, then opening the URL in it (recording the chosen
+  profile in the `mint_profile` seam field); on any other platform / no Chrome / declined, opening
+  the default browser AND printing the URL for manual paste into a logged-out/incognito window.
+  Account correctness still comes from the consent page's Switch-account affordance (AC2.3) + the
+  AC2.6 retype-confirm. v1 records the picked profile but does NOT build persistent
+  profile↔account association or auto-reuse (stays D-002).
+- **Rationale:** the original AC2.2 three-tier priority list was mis-framed — its top tier (dedicated
+  logged-out Chrome profile) is not buildable in v1, and auto-launching incognito with the URL is
+  unreliable on macOS (`open --args --incognito` is ignored when Chrome is already running), so tiers
+  (2) and (3) collapsed into "paste it yourself." The window-focus-then-open workaround lands the URL
+  in a deliberately chosen profile's cookie context without depending on `--args`. Recording the
+  profile into the existing `mint_profile` field is free (the seam exists for exactly this).
+- **Alternatives ruled out:** auto-open incognito (macOS won't honor it reliably); dedicated
+  logged-out profile tier (not buildable in v1); the original false-priority three-path list (a
+  never-firing path + two equivalent ones). Building the full persistent association/onboarding now —
+  rejected, stays deferred (D-002).
+- **Caveat (tracked):** this is the only macOS/Chrome-specific piece; a future iteration adds the
+  Linux/other-browser equivalent or confirms the portable fallback suffices. Logged in spec's
+  "Deferred for cross-platform" note.
+- **Context:** via /spec revise (iteration 1), Group D of the v001-2026-06-26-1923 review.
