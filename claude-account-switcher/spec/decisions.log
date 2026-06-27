@@ -187,3 +187,13 @@
   mint); running the focus-then-open spike before converging (unnecessary given the working print
   fallback — deferred to Phase 2 implementation discovery).
 - **Context:** via /spec revise (iteration 1), round-2 review (v001-2026-06-26-2144).
+
+## DEC-013 — Spec converged
+- **Decision:** Converged at `76e7430` on 2026-06-26.
+- **Rationale:** Human-judged convergence. Two review→revise loops ran; the round-2 review
+  (v001-2026-06-26-2144) was the substantive pass (it scrutinized rev2's new Chrome-profile routing),
+  and rev3 only reworded AC2.2 to requirement-level — no goals/constraints/success-criteria/AC-tree
+  changes. The two remaining items (AC2.2 profile-routing, AC3.6 dead-token signal) are explicitly
+  best-effort implementation-discovery tasks, each with a guaranteed fallback, so neither blocks
+  implementation. Levi declared convergence.
+- **Context:** via /spec check (iteration 1).
