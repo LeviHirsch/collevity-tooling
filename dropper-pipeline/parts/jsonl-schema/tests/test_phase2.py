@@ -17,7 +17,6 @@ import pytest
 
 from collevity.lake import append_entry, read_day, sync_sources
 from collevity.lake.bridges import excel
-from collevity.lake.bridges.backfill_mdt_tz import backfill
 
 
 # --- fixtures ---------------------------------------------------------------
@@ -145,51 +144,9 @@ def test_unchanged_rerun_is_idempotent(paths):  # AC4.3, AC4.6, success (c)
     assert len(pool_records(paths)) == 2           # duplicate count never grows
 
 
-# --- AC4.4: one-time MDT tz backfill ----------------------------------------
-
-def test_backfill_stamps_only_colorado_rows_mdt(paths):  # AC4.4
-    rows = [
-        ("home airport (outbound)", datetime(2026, 6, 13, 9, 30, 0), None),   # EDT
-        ("colorado wedding morning", datetime(2026, 6, 15, 8, 42, 40), None), # MDT
-        ("colorado, jun17 afternoon", datetime(2026, 6, 17, 14, 49, 23), None), # MDT
-        ("back home, now EDT", datetime(2026, 6, 17, 21, 1, 14), None),       # EDT
-        ("ongoing drop", datetime(2026, 6, 24, 12, 0, 0), None),              # EDT
-    ]
-    make_dropper(paths["xlsm"], rows)
-    run_ingest(paths)
-    # Before backfill: bridge is tz-dumb — everything EDT.
-    assert all(r["created_at"].endswith("-04:00") for r in pool_records(paths))
-
-    changed = backfill(sidecar_path=paths["sidecar"], pool_path=paths["pool"])
-    assert changed == 2                            # exactly the two CO rows
-
-    by_text = {r["text"]: r["created_at"] for r in pool_records(paths)}
-    assert by_text["colorado wedding morning"] == "2026-06-15T08:42:40-06:00"
-    assert by_text["colorado, jun17 afternoon"] == "2026-06-17T14:49:23-06:00"
-    assert by_text["home airport (outbound)"].endswith("-04:00")
-    assert by_text["back home, now EDT"].endswith("-04:00")
-    assert by_text["ongoing drop"].endswith("-04:00")
-
-
-def test_backfill_is_idempotent(paths):  # AC4.4
-    make_dropper(paths["xlsm"], [("co", datetime(2026, 6, 16, 10, 0, 0), None)])
-    run_ingest(paths)
-    assert backfill(sidecar_path=paths["sidecar"], pool_path=paths["pool"]) == 1
-    again = backfill(sidecar_path=paths["sidecar"], pool_path=paths["pool"])
-    assert again == 1                              # re-sets same value, harmless
-    assert pool_records(paths)[0]["created_at"] == "2026-06-16T10:00:00-06:00"
-
-
-def test_backfill_survives_a_later_text_edit(paths):  # AC4.4 + AC4.3 interaction
-    make_dropper(paths["xlsm"], [("co typo", datetime(2026, 6, 16, 10, 0, 0), None)])
-    run_ingest(paths)
-    backfill(sidecar_path=paths["sidecar"], pool_path=paths["pool"])
-    # Bridge edits only `text` on a change ⇒ the -06:00 offset is preserved.
-    make_dropper(paths["xlsm"], [("co fixed", datetime(2026, 6, 16, 10, 0, 0), None)])
-    run_ingest(paths)
-    rec = pool_records(paths)[0]
-    assert rec["text"] == "co fixed"
-    assert rec["created_at"] == "2026-06-16T10:00:00-06:00"
+# NOTE: AC4.4's one-time MDT tz backfill (`backfill_mdt_tz.py`) and its tests were
+# removed after the backfill ran against the live lake (post-iteration-1 cleanup,
+# 2026-06-26). The disposable script and its 3 tests live in git history at 782aaec.
 
 
 # --- AC4.5: self-contained / clean-delete -----------------------------------

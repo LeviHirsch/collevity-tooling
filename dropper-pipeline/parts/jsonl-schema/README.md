@@ -67,19 +67,19 @@ core never imports `openpyxl`; the bridge imports it lazily, and it's an
 **optional** install extra (`pip install -e '.[excel]'`).
 
 ```sh
-# one-time migration + ongoing sync of the live Dropper into the lake
+# ongoing sync of the live Dropper into the lake (also ran the initial migration)
 export COLLEVITY_LAKE="$HOME/Library/Mobile Documents/com~apple~CloudDocs/00_COLLEVITY/03_TACTIC/_DATA/collevity_lake.jsonl"
 python -m collevity.lake.bridges.excel          # idempotent — safe to re-run
-python -m collevity.lake.bridges.backfill_mdt_tz  # RUN ONCE, then delete the script
 ```
 
 - **Bridge** (`bridges/excel.py`): reads only col D (`text`) + col E
   (drop-timestamp), ignores col F (`modified`); writes through the seam; keys
   rows in a sidecar (`excel-ingest-state.json`, beside the lake) for idempotent
   re-runs + edit propagation. Runs under `sync_sources` — the sole v1 ingester.
-- **tz backfill** (`bridges/backfill_mdt_tz.py`): one-shot, disposable. The bridge
-  stamps every row EDT; this stamps the mid-June Colorado-trip rows `-06:00`.
-  Delete it after running.
+- **tz backfill** (was `bridges/backfill_mdt_tz.py`): one-shot, disposable. The
+  bridge stamps every row EDT; the backfill stamped the mid-June Colorado-trip
+  rows `-06:00`. Already run against the live lake and **deleted** (git history at
+  782aaec).
 - **Retire Excel:** delete `collevity/lake/bridges/`. `sync_sources` reverts to a
   zero-work no-op (lazy import → `ImportError` → nothing to sync); core untouched.
 

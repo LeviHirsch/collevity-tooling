@@ -16,8 +16,9 @@ What it reads (AC4.1, recorded ignore-rule protocol):
 
 Timezone (AC4.4): the bridge is **tz-dumb** — it stamps every row EDT (`-04:00`),
 which is correct for all ongoing drops and all legacy rows *except* the handful
-made during the mid-June Colorado trip. Those are corrected once by the disposable
-`backfill_mdt_tz.py` script. The bridge itself carries **no** tz logic.
+made during the mid-June Colorado trip. Those were corrected once by a disposable
+one-shot backfill script (since run + deleted; git history at 782aaec). The bridge
+itself carries **no** tz logic.
 
 Row identity (AC4.2, DEC-016): there is exactly one Dropper file, so row order is
 stable across runs. The sidecar keys each row by its drop-timestamp; on the (in
@@ -49,7 +50,7 @@ _DEFAULT_XLSM = (
 )
 _SHEET = "Sheet1"
 _SOURCE = "dropper-excel"  # DEC-007
-_EDT_OFFSET = "-04:00"  # bridge stamps EDT for every row (AC4.4); backfill fixes MDT
+_EDT_OFFSET = "-04:00"  # bridge stamps EDT for every row (AC4.4); MDT rows backfilled once (now removed)
 
 # 0-based column indexes within a values_only row tuple.
 _COL_TEXT = 3  # D = Thing
