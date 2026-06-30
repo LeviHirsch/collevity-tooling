@@ -1,0 +1,77 @@
+# Decisions — Prompt-Capture Hook
+
+> Append-only, past-tense. One decision per block. Logged during /spec interview
+> (iteration 1) unless noted.
+
+# Iteration 1
+
+## DEC-001 — v1 is a thin, deterministic capture hook (no SDK inline)
+**Decision:** v1 = a Claude Code hook (shell command) that writes user prompts to
+the lake via `append_entry`. Pure plumbing — no LLM call in the hook path.
+**Alternatives rejected:** (b) capture+triage inline; (c) full session-harvester
+with provenance chains.
+**Rationale:** an inline SDK/LLM call adds latency, cost, and a failure surface to
+every prompt and can't fail-open without dropping data. The intelligence
+(triage/contextualize) belongs in a later async layer over the lake — which is
+also the right home for the first SDK pilot.
+**Context:** via /spec interview Q1 (iteration 1).
+
+## DEC-002 — Everything goes; no promotion/triage in v1
+**Decision:** the hook captures ALL user prompts. No promotion state, no
+filtering, no triage in v1. Unstructured is acceptable now.
+**Rationale:** the timestamped *flow* of prompts is itself valuable data for
+thread-tracking (the shape of attention over time), independent of any single
+prompt being a "keeper." Promotion is deferred to a later layer (candidate SDK
+pilot). Keeps v1 the simplest possible build.
+**Context:** via /spec interview Q3 (iteration 1).
+
+## DEC-003 — /checkin shows hook entries (no source filter)
+**Decision:** `/checkin` / `read_day` is NOT modified to skip `claude-hook`
+entries. Day-based targeting is sufficient; the captured prompts double as a
+"what I was working on" trace that Levi wants in the daily read.
+**Alternatives rejected:** exclude `claude-hook` from checkin until a promotion
+layer can surface only the good ones.
+**Rationale:** Levi wants the flow read into checkin now; future pollution is
+accepted as a later problem on a still-small dataset. Consequence: part 3
+requires NO change to part 1's `read_day`.
+**Context:** via /spec interview Q4 (iteration 1).
+
+## DEC-004 — Promotion-state, if/when built, stays off the entry field-contract
+**Decision:** when a promotion/triage layer is eventually built, its state lives
+as a `tag` or a downstream/strata index — NOT as a new top-level entry field.
+**Rationale:** the schema's philosophy (part 1 DEC-009) keeps lifecycle/triage
+state downstream; the raw entry stays thin. Avoids reopening the keystone
+field-contract. Noted now as forward design; not built in v1.
+**Context:** via /spec interview Q3 (iteration 1).
+
+## DEC-005 — Global hook scope (`~/.claude/settings.json`)
+**Decision:** the hook is installed globally — it fires in every Claude Code
+session, not just sessions rooted in the Collevity workspace.
+**Alternatives rejected:** workspace-scoped (`00_COLLEVITY/.claude/settings.json`).
+**Rationale:** Levi is still mid-migration into the Collevity workspace, so
+relevant work lives outside it today. Global avoids losing that. Narrowing later
+(move config down to the workspace) is reversible and lossless; widening after the
+fact would lose data. Revisit once migration completes.
+**Context:** via /spec interview Q5 (iteration 1).
+
+## DEC-006 — AC tree: 5 top-level groups vs merged write-path grouping
+**Decision:** AC tree uses 5 distinct top-level groups — installation (AC1),
+payload correctness (AC2), persistence (AC3), fail-open (AC4), readability (AC5).
+**Alternatives rejected:** merge AC1+AC2+AC3 into a single "write path" group
+(alternative raised during seeding).
+**Rationale:** keeping installation, payload shape, and persistence as separate
+groups makes each independently testable and makes the MECE coverage explicit.
+Merging them would obscure which criterion the sub-AC was actually testing.
+**Context:** /spec seed structuring choice (iteration 1).
+
+## DEC-007 — Implementation phases: 2 (build + verify) vs 1 (all together)
+**Decision:** 2 phases — Phase 1 is the full build (script + wiring + fail-open),
+Phase 2 is end-to-end live verification (submit prompt, inspect lake, run
+read_day).
+**Alternatives rejected:** single phase (all ACs together); 3 phases (install,
+script, verify).
+**Rationale:** Phase 2's AC5.1 requires a live running installation to exercise,
+making it genuinely a later step. Single phase obscures that dependency. 3 phases
+over-split an already small build (the script is ~50 lines). 2 phases is the
+minimum split that reflects the real gate.
+**Context:** /spec seed structuring choice (iteration 1).
