@@ -74,12 +74,16 @@ validated** — no hook channel exists yet. The reserved shape for the
 `claude-hook` source:
 
 ```json
-"context": { "kind": "claude-session", "session_id": "...", "cwd": "...", "seq": 3, "parent_id": "..." }
+"context": { "kind": "claude-session", "session_id": "...", "cwd": "..." }
 ```
 
 (`cwd` is **designed** context for this source — added per the part-3 interview,
-Q6, 2026-06-30. `seq` and `parent_id` are reserved/optional and **not populated
-in v1**.) When the prompt-capture hook goes live (part 3), `context` becomes
+Q6, 2026-06-30. The shape is intentionally minimal: a within-session sequence or
+prompt-to-prompt parent link is **derivable** from `created_at` ordering under a
+`session_id`, so neither is reserved on the entry — that linkage is the strata
+layer's job, not the raw stream's. Earlier `seq` / `parent_id` placeholders were
+dropped for this reason — see the part-3 prompt-capture-hook spec, 2026-06-30.)
+When the prompt-capture hook goes live (part 3), `context` becomes
 **conditionally required** for `source: claude-hook` entries — the v1 required
 keys are `kind`, `session_id`, `cwd`; that conditional validation is part 3's
 work, not v1's.

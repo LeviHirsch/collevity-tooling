@@ -6,7 +6,7 @@
 
 ## Open questions
 
-1. **RESOLVED (2026-06-30).** The `context` shape mismatch is fixed at the source: part-1 `SCHEMA.md` now lists `cwd` in the reserved `claude-hook` context shape, with `kind` / `session_id` / `cwd` as the v1 required keys and `seq` / `parent_id` reserved-not-populated. The hook writes `{ kind: "claude-session", session_id, cwd }`.
+1. **RESOLVED (2026-06-30).** The `context` shape mismatch is fixed at the source: part-1 `SCHEMA.md` now lists `cwd` in the reserved `claude-hook` context shape, with `kind` / `session_id` / `cwd` as the v1 required keys. The earlier `seq` / `parent_id` placeholders were **dropped** (DEC-008) — both are derivable from `created_at` ordering under a `session_id`, so linkage belongs to the strata layer, not the raw entry. The reserved shape is exactly `{ kind, session_id, cwd }` and the hook writes `{ kind: "claude-session", session_id, cwd }`.
 
 2. **RESOLVED via Claude Code hook docs (2026-06-30).** `UserPromptSubmit` delivers on stdin: `user_prompt` (the prompt text), `session_id`, and `cwd` — mapping directly to the entry's `text`, `context.session_id`, and `context.cwd`. **Caveat:** the text field is `user_prompt` (not `prompt`); on first install the implementer should echo the raw stdin payload once to confirm key names against the running Claude Code version before trusting them. **Critical fail-open finding (folded into AC4):** for `UserPromptSubmit`, **exit code 2 BLOCKS and erases the prompt**, and any stdout on an exit-0 run is injected into the conversation as context. So the hook must exit 0 with empty stdout on **both** success and failure — never exit 2, never print to stdout.
 
@@ -23,7 +23,7 @@ Install a global Claude Code `UserPromptSubmit` hook that appends every user pro
 ## Constraints
 
 - **Fail-open / non-blocking:** a lake-write failure must never delay or block prompt submission; the Claude Code session continues normally regardless of write outcome.
-- **Zero field-contract change:** writes only fields already accepted by the live lake (`text`, `created_at`, `source`, `author`, `context`); does not mint `id`; leaves `seq` and `source_data` unpopulated.
+- **Zero field-contract change:** writes only fields already accepted by the live lake (`text`, `created_at`, `source`, `author`, `context`); does not mint `id`; leaves `source_data` unpopulated.
 - **Global scope:** installed in `~/.claude/settings.json` so it fires in every Claude Code session (DEC-005).
 - **Local-offset `created_at`:** the hook owns offset-correctness — stamps the correct local UTC offset at capture time; the store neither re-derives nor validates it (DEC-017 from part 1).
 - **No SDK / LLM call in the path:** the hook is pure plumbing (DEC-001).
@@ -39,7 +39,6 @@ Install a global Claude Code `UserPromptSubmit` hook that appends every user pro
 - Triage and promotion of entries (DEC-002, DEC-004).
 - Contextualize layer — adding LLM-derived context to captured prompts.
 - Any SDK or LLM call in the hook path (DEC-001); deferred to a later async layer over the lake.
-- `seq` field population (reserved, not populated in v1).
 - `source_data` population (reserved, empty in v1).
 - Semantic thread-discrimination (part 4's job; the hook provides raw signal — text, session_id, cwd, timestamp — and part 4 clusters).
 - Slash-command skip-lists (skip-filtering is itself triage; deferred).
@@ -64,7 +63,7 @@ Install a global Claude Code `UserPromptSubmit` hook that appends every user pro
 - AC2.3. `source` equals `"claude-hook"`.
 - AC2.4. `author` equals `"user"`.
 - AC2.5. `context` is a JSON object with `"kind": "claude-session"`, a non-empty `"session_id"` string matching the current Claude Code session, and a non-empty `"cwd"` string matching the session's working directory.
-- AC2.6. The written entry carries no `id` field (the store mints it), no `seq` field, and no `source_data` field.
+- AC2.6. The written entry carries no `id` field (the store mints it) and no `source_data` field; `context` carries only `kind` / `session_id` / `cwd` (no `seq`, no `parent_id`).
 
 ### AC3. Entry is persisted to the live lake
 

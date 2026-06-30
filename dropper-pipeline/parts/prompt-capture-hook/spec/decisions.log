@@ -75,3 +75,28 @@ making it genuinely a later step. Single phase obscures that dependency. 3 phase
 over-split an already small build (the script is ~50 lines). 2 phases is the
 minimum split that reflects the real gate.
 **Context:** /spec seed structuring choice (iteration 1).
+
+## DEC-008 — Drop `seq` and `parent_id` from the reserved `claude-hook` context shape
+**Decision:** Remove both `seq` and `parent_id` from the reserved `claude-hook`
+`context` shape in part-1 `SCHEMA.md`. The reserved (and hook-written) shape is
+now exactly `{ kind, session_id, cwd }`.
+**Alternatives rejected:** (a) drop `parent_id` only, keep `seq` reserved — leaves
+the same weakness unaddressed in `seq`; (b) keep `parent_id` and pin a concrete
+definition (sub-agent parent-session link vs prior-prompt chain) — adds a contract
+the hook does not fill.
+**Rationale (Levi):** both are undefined placeholders that collide with the
+keystone's thin-entry ethic (part-1 DEC-009: typing/structure accrete downstream,
+never on the raw entry). A within-session sequence and a prompt-to-prompt parent
+link are both **derivable** from `created_at` ordering under a `session_id` (and
+`id` is time-ordered UUIDv7), so neither adds information. `parent_id` is also
+largely inapplicable: `UserPromptSubmit` captures user-typed prompts, not the
+programmatic prompts of sub-agent child sessions. Linkage is the strata/thread
+layer's job (part 4), not the raw stream's.
+**Consequences:** part-1 `SCHEMA.md` reserved shape + prose amended (cross-part
+edit to a closed-iteration doc, same pattern as the cwd amendment; rationale
+tracked here, not as a new part-1 DEC). Part-3 spec.md reconciled — `seq` removed
+from Constraints, Out-of-scope, and AC2.6; AC2.6 now asserts `context` carries
+only `kind`/`session_id`/`cwd`. Resolves the seed session's pending `parent_id`
+open thread.
+**Context:** resolved this session (2026-06-30), pre-`/spec review`, answering the
+seed package's DECISION PENDING.
