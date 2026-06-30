@@ -1,0 +1,12 @@
+schema_version: 1
+iteration: 1
+mode: greenfield
+phase: interviewing
+started_at: 2026-06-29T20:07:00-04:00
+last_command: /spec interview
+last_command_at: 2026-06-30T00:00:00-04:00
+spec_sha: null
+latest_interview: spec/archive/v001-2026-06-29-2007-interview.md
+latest_review_stamp: null
+latest_verify: null
+phases_implemented: []
