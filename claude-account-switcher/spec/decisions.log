@@ -212,3 +212,29 @@
   `user:inference`-only).
 - **Bucket:** 2 (minor spec edit — no assertion change, no AC added/removed; phase stays `converged`).
 - **Context:** during /spec reconcile (iteration 1).
+
+## DEC-015 — Phase 2 implementation choices (`add` flow plumbing)
+- **Decision:** The spec-silent implementation forks for Phase 2 were resolved with Levi:
+  (a) **CLI framework = argparse** (stdlib) — preserves Phase 1's zero-runtime-deps, portable-core
+  posture; no `[project.scripts]` entry yet (the `claude-switch`/`cas` console name is Phase 5 / AC7.3),
+  only `cas.cli:main` + `cas/__main__.py` for invocation/testing.
+  (b) **`setup-token` subprocess driven over a pty** (stdlib `pty`) rather than a plain pipe — so the
+  CLI sees a real terminal and behaves as in the DEC-010 manual run, avoiding tty-gated/block-buffered
+  output stalls; the genuinely-uncertain item, to be confirmed at the live manual mint ("live
+  flexibility").
+  (c) **Chrome routing = ALWAYS print the URL AND best-effort auto-open** in the user-selected profile
+  (Levi's steer: print is the unconditional safety net, the open is the convenience). Open mechanism is
+  the DEC-011/012 candidate (`open -na "Google Chrome" --args --profile-directory=…`), unverified; on
+  any failure the printed URL is authoritative. The user's profile selection is recorded in
+  `mint_profile` even if the auto-open itself fails (they still chose that context).
+  (d) **Split modules:** `cas/cli.py` (argparse), `cas/add.py` (mint orchestration), `cas/setup_token.py`
+  (pty drive + stdout scrape + liveness), `cas/chrome.py` (Local State enumerate + route), `cas/io.py`
+  (injectable prompt/confirm/choose surface) — boundaries the Phase 2 tests mock.
+- **Lower-stakes defaults (stated, not separately asked):** stdout scrape = line-buffered scan, first
+  `https?://…` = URL (pre-auth), first `sk-ant-oat01-…` = oat (post-auth), ANSI-stripped; retype-confirm
+  = stdlib prompt + echo-back + explicit confirm keystroke; liveness = `claude auth status` in a throwaway
+  config dir with `CLAUDE_CODE_OAUTH_TOKEN` set, tolerant parse for `loggedIn: true` + `oauth_token`.
+- **Testing boundary:** per the phase brief, the subprocess/browser boundaries (`SetupTokenMinter`,
+  `liveness_check`, `ChromeRouter`) are mocked in the automated tests; pure helpers (URL/oat scrape,
+  auth-status parse, profile parse) are unit-tested directly; the genuine live mint is a manual step.
+- **Context:** via /spec implement (Phase 2), forks surfaced to Levi 2026-06-29.

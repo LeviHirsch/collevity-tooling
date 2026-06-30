@@ -21,6 +21,15 @@ class InvalidLabelError(CasError):
     """
 
 
+class MintError(CasError):
+    """The ``claude setup-token`` subprocess failed to produce an oat (AC2.1/AC2.4).
+
+    Raised when the binary cannot be launched, or it exits without ever printing
+    a ``sk-ant-oat01-…`` token to stdout. The ``add`` flow catches this and aborts
+    with a clear message; nothing is written to the store.
+    """
+
+
 class LabelExistsError(CasError):
     """A label already exists in the store and overwrite was not requested.
 
