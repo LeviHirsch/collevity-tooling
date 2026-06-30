@@ -18,6 +18,9 @@ class IO:
     def info(self, msg: str = "") -> None:  # normal output (stdout)
         raise NotImplementedError
 
+    def notice(self, msg: str) -> None:  # plain diagnostic line (stderr, no prefix)
+        raise NotImplementedError
+
     def warn(self, msg: str) -> None:  # non-fatal notice (stderr)
         raise NotImplementedError
 
@@ -40,6 +43,12 @@ class ConsoleIO(IO):
 
     def info(self, msg: str = "") -> None:
         print(msg)
+
+    def notice(self, msg: str) -> None:
+        # Diagnostic chatter (e.g. the `run` identity echo) belongs on stderr so a
+        # piped child's stdout stays clean for downstream consumers. No prefix —
+        # this is a plain status line, not a warning.
+        print(msg, file=sys.stderr)
 
     def warn(self, msg: str) -> None:
         print(f"warning: {msg}", file=sys.stderr)
