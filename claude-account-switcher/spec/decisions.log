@@ -238,3 +238,23 @@
   `liveness_check`, `ChromeRouter`) are mocked in the automated tests; pure helpers (URL/oat scrape,
   auth-status parse, profile parse) are unit-tested directly; the genuine live mint is a manual step.
 - **Context:** via /spec implement (Phase 2), forks surfaced to Levi 2026-06-29.
+
+## DEC-016 — AC4.2 accepted UNCLEAR at Phase 4 audit (real `auth status` output not yet captured)
+- **Decision:** Phase 4's `list` active-login match (AC4.2) is confirmed as acceptable phase-level
+  evidence despite an UNCLEAR verdict. The match logic (`default_login_email` env-stripped probe +
+  `parse_login_email` tolerant field/bare-address parse, `cas/listing.py:74-140`) is implemented and
+  fully unit-tested, but every test feeds synthetic `claude auth status` stdout — nothing validates
+  against captured REAL output. If the live CLI's output does not carry the email in the assumed shape,
+  AC4.2 degrades silently to "no match" on every row and no current test would catch it.
+- **Rationale:** The parser is deliberately tolerant and fails safe (returns `None` → "no active
+  interactive login matched", never crashes), so the downside of a wrong assumption is a missing active
+  marker, not a broken command. Capturing real output is a live-environment step better folded into the
+  full-spec `/spec verify` (or a standalone manual spike) than into the Phase 4 code audit. Unlike
+  DEC-010's oat/URL-scrape assumption — which had no fallback and required a pre-implementation spike —
+  this one degrades gracefully, so deferring verification is proportionate.
+- **Follow-up:** Capture a real `claude auth status` (default-config login) stdout sample and add a
+  fixture-backed test asserting `parse_login_email(sample) == expected email`; resolve at `/spec verify`.
+- **Alternatives ruled out:** (a) block Phase 4 to capture real output now (rejected — fail-safe
+  degradation makes it non-blocking); (b) leave UNCLEAR unlogged and re-surface only at verify (rejected
+  — the assumption deserves an explicit paper trail so verify has a named target).
+- **Context:** via /spec implement (Phase 4 audit), Levi accepted 2026-06-30.
