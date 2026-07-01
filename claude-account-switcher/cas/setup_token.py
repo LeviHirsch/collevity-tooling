@@ -21,19 +21,31 @@ is a manual step. Automated tests mock :class:`SetupTokenMinter` and
 
 from __future__ import annotations
 
+import fcntl
 import os
 import pty
 import re
 import select
 import shutil
+import struct
 import subprocess
 import tempfile
+import termios
 from typing import Callable, Optional
 
 from .errors import MintError
 
 #: The claude binary name; overridable for tests / non-PATH installs.
 CLAUDE_BIN = os.environ.get("CAS_CLAUDE_BIN", "claude")
+
+#: A pty defaults to an 80-column terminal, and ``claude setup-token``'s TUI
+#: hard-wraps its output to the terminal width — which chopped the OAuth URL at
+#: exactly 80 chars, so the scrape captured only its first line (discovered in a
+#: live mint, 2026-07-01). We size the pty absurdly wide so no single-line URL or
+#: token ever wraps. ``ws_col`` is an unsigned short (max 65535); 4096 is far
+#: wider than any authorize URL yet safely under that ceiling.
+_PTY_ROWS = 50
+_PTY_COLS = 4096
 
 # Strip terminal control sequences a pty may interleave before we scan a line.
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
@@ -83,6 +95,16 @@ class SetupTokenMinter:
         env["CLAUDE_CONFIG_DIR"] = config_dir
 
         master, slave = pty.openpty()
+        # Widen the pty before the child starts so setup-token's width-aware TUI
+        # does not wrap the URL/token onto multiple lines (see _PTY_COLS note).
+        try:
+            fcntl.ioctl(
+                slave,
+                termios.TIOCSWINSZ,
+                struct.pack("HHHH", _PTY_ROWS, _PTY_COLS, 0, 0),
+            )
+        except OSError:
+            pass  # best-effort; a failure just risks the pre-fix wrap behavior
         try:
             proc = subprocess.Popen(
                 [self.claude_bin, "setup-token"],

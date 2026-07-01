@@ -143,6 +143,36 @@ def test_find_oat_absent_returns_none():
     assert setup_token.find_url("no url here") is None
 
 
+def test_mint_widens_pty_so_url_does_not_wrap(monkeypatch):
+    """Regression: a default 80-col pty made setup-token wrap the OAuth URL,
+    truncating the scrape at 80 chars (live mint, 2026-07-01). ``mint`` must
+    resize the pty wide before launching the child."""
+    import fcntl
+    import struct
+    import termios
+
+    seen = []
+    real_ioctl = fcntl.ioctl
+
+    def spy_ioctl(fd, op, arg, *rest):
+        if op == termios.TIOCSWINSZ:
+            seen.append(struct.unpack("HHHH", arg))
+        return real_ioctl(fd, op, arg, *rest)
+
+    monkeypatch.setattr(setup_token.fcntl, "ioctl", spy_ioctl)
+
+    # /usr/bin/true exits 0 without printing an oat → MintError, but the winsize
+    # is set before the child launches, so the spy still records it.
+    minter = setup_token.SetupTokenMinter(claude_bin="/usr/bin/true")
+    with pytest.raises(MintError):
+        minter.mint(lambda url: None)
+
+    assert seen, "mint never set the pty window size (TIOCSWINSZ)"
+    rows, cols, _, _ = seen[0]
+    assert cols == setup_token._PTY_COLS
+    assert cols >= 1024, "pty width must dwarf any authorize URL"
+
+
 # --- AC2.2: Chrome-profile routing + always-print fallback -----------------
 
 def test_selected_profile_recorded_in_mint_profile(home):
