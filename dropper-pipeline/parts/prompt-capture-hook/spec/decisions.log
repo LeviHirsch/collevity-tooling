@@ -100,3 +100,119 @@ only `kind`/`session_id`/`cwd`. Resolves the seed session's pending `parent_id`
 open thread.
 **Context:** resolved this session (2026-06-30), pre-`/spec review`, answering the
 seed package's DECISION PENDING.
+
+## DEC-009 — Fail-open leaves a breadcrumb: best-effort error sidecar
+**Decision:** On any swallowed failure, the hook makes a best-effort append of a
+diagnostic line to an error sidecar file; the sidecar write is itself wrapped so
+it can never break fail-open (still exit 0, empty stdout, never exit 2). New leaf
+AC4.3.
+**Alternatives rejected:** (a) accept silent discard, no log — a broken hook stays
+invisible until a gap is noticed at `/checkin`; (c) write diagnostics to stderr —
+`UserPromptSubmit` stderr handling is version-dependent, risks either being
+swallowed anyway or leaking noise into the session.
+**Rationale (Levi):** fail-open is non-negotiable, but "swallow" was silently also
+"discard invisibly." A sidecar turns invisible loss into one file to check when
+captures seem missing, at ~3 lines of cost, without weakening fail-open.
+**Context:** /spec revise (iteration 1), concern O3+C3 (two personas converged on
+the observability blind spot).
+
+## DEC-010 — AC3.1 promises one line per invocation, not per prompt; duplicates tolerated
+**Decision:** Reword AC3.1 from "exactly one line per prompt" to "one line per
+hook invocation," with an accepted-risk note: if `UserPromptSubmit` ever
+double-fires, the resulting duplicate entry is a low-harm triage-layer concern
+(DEC-002), not a hook defect. No dedup code.
+**Alternatives rejected:** (a) build real idempotency (content-hash / (session_id,
+text, timestamp) dedup before append) — adds read-back + state to a hook whose
+identity is thin deterministic plumbing (DEC-001), the only v1 element that would
+violate the everything-goes posture; (c) leave "exactly one" — a latent false
+claim (fire count is Claude Code's property, not the hook's), which a verify pass
+could wrongly fail the hook for.
+**Rationale (Levi):** duplicates are nearly harmless in an append-only lake that
+gets triaged anyway; the fix is honesty in the AC, not code.
+**Context:** /spec revise (iteration 1), concern O2 (ontologist's most load-bearing).
+
+## DEC-011 — created_at: sub-second precision at capture; offset correctness inherited
+**Decision:** The hook stamps `created_at` with sub-second (microsecond) precision
+(e.g. `...T14:05:00.123456-04:00`), not `:00` seconds (AC2.2). Offset *correctness*
+is inherited from part-1 DEC-017 — owned at capture, not re-derived or validated
+here; the hook validates format, not that the host clock is right.
+**Alternatives rejected:** (a) keep second precision — collapses near-simultaneous
+captures and caps the finest orderable resolution; (c) add a correctness guard
+(NTP / expected-zone check) — nothing else in the system second-guesses the OS
+clock, so it would be inconsistent overreach.
+**Rationale (Levi):** chronological order is recovered by sorting `created_at`, so
+its precision sets how finely events can be ordered; microseconds conform to
+part-1's ISO-8601 validator with no schema change, and future-proof the data even
+though `read_day` surfaces minute granularity today (see DEC-013). Also resolves
+the offset-correctness ambiguity flagged by O1+C4 (is it a bug or a decision?) —
+it is an inherited decision.
+**Context:** /spec revise (iteration 1), concerns O1+C4 and Levi's precision push.
+
+## DEC-012 — Chronological order: read-time sort + settle-time compaction (Option B)
+**Decision:** The lake becomes chronological (a) on read via `read_day`'s existing
+in-memory sort, and (b) physically **on settle**: `sync_sources` rewrites the lake
+sorted by `created_at` (reusing part-1's atomic `_rewrite_all`). Live hook appends
+stay O(1) at the file tail; only the transient tail since the last sync is
+unsorted. The hook itself does no ordering beyond stamping an accurate,
+high-precision `created_at`. (Physical compaction is part-1 dependency D2.)
+**Alternatives rejected:** (A) sort-on-read only — keeps O(1) append but the file
+on disk never becomes chronological, which Levi wants for reading the raw lake;
+(C) sorted insert on every append — file always fully sorted, but every prompt
+becomes an O(n) read-modify-write with much worse concurrency exposure, fighting
+the append-dominant design.
+**Rationale (Levi):** wants a chronological raw file to read (consistent with his
+inspect-the-bytes practice) without paying per-append cost; settle-time compaction
+in `sync_sources` gives both. Clarified during review that `read_day` sorts only
+its returned rows, not the file — so physical ordering was genuinely unsolved.
+**Context:** /spec revise (iteration 1), Levi's ordering question. Note: `id`
+(UUIDv7) remains the arrival-order axis; `created_at` is the event-order axis.
+
+## DEC-013 — read_day sort/display precision raised to sub-minute (supersedes DEC-003 consequence)
+**Decision:** Part 1's `read_day` must sort and surface at sub-minute resolution so
+the hook's fine-grained `created_at` (DEC-011) is actually ordered on read.
+Currently it sorts by an `HH:MM` string (`lake.py`). Part-1 dependency D1.
+**Supersedes:** the DEC-003 *consequence* "part 3 requires no change to part 1's
+`read_day`." The source-filtering half of DEC-003 still stands (read_day is not
+modified to skip `claude-hook` entries); only the "no change at all" claim is
+retired.
+**Alternatives rejected:** (a) store microseconds but leave read_day at minute
+granularity — sub-minute order stored but never surfaced, leaving Levi's precision
+requirement unmet; (c) surface raw `created_at` strings instead of formatted time
+— larger change to read_day's output contract than needed.
+**Rationale (Levi):** "read_day will need to be changed for precision of sorting to
+a greater degree" — explicit requirement.
+**Context:** /spec revise (iteration 1). Reopens part-1 (closed) for a follow-on
+iteration; tracked as cross-part dependency D1.
+
+## DEC-014 — Global scope confirmed; "lossless" claim corrected; privacy tradeoff accepted
+**Decision:** Global scope (DEC-005) stands. Correct DEC-005's rationale: narrowing
+scope later is lossless only *going forward* — every entry captured during the
+global window (including non-Collevity / client / personal sessions) is permanent;
+narrowing is **not** retroactive. The breadth-of-capture privacy tradeoff is
+recorded as a knowingly accepted cost, revisit when workspace migration completes.
+**Alternatives rejected:** (2) narrow to workspace scope now — kills the privacy
+concern but loses the outside-workspace work that was the whole reason for global
+(Levi is mid-migration); (3) global + cwd guard in the hook — that is filtering,
+which DEC-002 deferred, and opens a "which roots" decision surface.
+**Rationale (Levi):** confirmed capturing every session everywhere does not bother
+him; the mid-migration reason for global still holds. Only the false "reversible
+and lossless" wording needed fixing.
+**Context:** /spec revise (iteration 1), concern C1+C2 (contrarian's biggest risk).
+Amends the rationale of DEC-005 (decision unchanged).
+
+## DEC-015 — Concurrent-append safety is a part-1 dependency, not hook work
+**Decision:** The hook relies on `append_entry` being safe under concurrent
+appends (global scope makes concurrent sessions realistic). Confirming — and if
+needed hardening (advisory lock) — that safety is part-1's job. `append_entry`
+currently does a plain `open("a")` + single `write()` with no lock (`lake.py`);
+atomic enough for small appends on local disk, weaker on iCloud (DEC-022).
+Part-1 dependency D3.
+**Alternatives rejected:** (b) add locking inside the hook — wrong layer; every
+capture surface would have to reimplement it; (c) ignore — real (if low) corruption
+risk that global scope newly activates.
+**Rationale (Levi):** ordering/concurrency of the shared file is a property of the
+store seam, not of any one writer; keep the hook thin and push the guarantee to
+`append_entry`.
+**Context:** /spec revise (iteration 1), concern C7 (concurrent-append half).
+Same-minute *read* collision was dismissed as a non-problem (sub-second precision
+per DEC-011 + list-valued read). Reopens part-1; tracked as dependency D3.
