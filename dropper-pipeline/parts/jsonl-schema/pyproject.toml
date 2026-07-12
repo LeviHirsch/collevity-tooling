@@ -11,6 +11,11 @@ dependencies = [
     "uuid6>=2024.1.12",
 ]
 
+[project.scripts]
+# The seam's read consumer (DEC-019: sync-then-read). /checkin calls this instead
+# of carrying its own shim. Location-agnostic — caller sets COLLEVITY_LAKE.
+collevity-read-day = "collevity.lake.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8", "openpyxl>=3.1"]
 # The Excel bridge (Phase 2, AC4) is throwaway transition scaffolding — keep the
