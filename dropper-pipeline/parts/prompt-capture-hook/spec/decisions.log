@@ -216,3 +216,42 @@ store seam, not of any one writer; keep the hook thin and push the guarantee to
 **Context:** /spec revise (iteration 1), concern C7 (concurrent-append half).
 Same-minute *read* collision was dismissed as a non-problem (sub-second precision
 per DEC-011 + list-valued read). Reopens part-1; tracked as dependency D3.
+
+## DEC-016 — D3 (and D1/D2) resolved by part-1 iteration 2 landing
+**Decision:** All three cross-part dependencies LANDED 2026-07-11 (part-1
+iteration 2, commit 078c698): D1 `read_day` sorts by parsed `created_at`
+(sub-minute); D2 `sync_sources` settles the pool chronologically (atomic,
+no-op when sorted); D3 all lake mutations serialize on an advisory flock
+sidecar (`<pool>.lock`). The revise session's open sequencing question
+(gate install on D3 / ship with disclosed gap / hook-owned lock) is moot —
+D3 landed before install. Empirical evidence: 6-process × 20-append hammer
+test, zero lost/torn lines. Residual accepted risk: iCloud **multi-machine**
+concurrent use can still yield conflict-copy files — a sync/settle concern,
+not line corruption; single-machine concurrency is now locked.
+**Alternatives rejected:** (a) gate install on D3 — overtaken by events;
+(c) hook-owned lock — wrong layer (reaffirms DEC-015).
+**Rationale (Claude, judgment delegated by Levi 2026-07-11):** the fork built
+against this spec implemented the dependencies at the layer DEC-015 assigned
+them; merge + commit made the guarantee real before any install.
+**Context:** /spec revise (iteration 1), resumed after the 2026-07-11 fork
+merge; closes the SPP 2026-07-11-1412 open item #1.
+
+## DEC-017 — AC4.3 error sidecar DEMOTED from AC to owned limitation
+**Decision:** The best-effort error-sidecar breadcrumb stays in the
+implementation (built, merged, subprocess-tested) but is no longer an
+acceptance criterion. "Best-effort" is not a testable guarantee — an AC that
+can fail and still pass is not an AC (contrarian). The spec now states the
+breadcrumb as an implementation note under AC4 and surfaces the residual
+(both writes fail → capture vanishes with zero trace) as an accepted risk in
+Constraints. No sidecar lifecycle machinery (rotation, reader) is specced for v1.
+**Alternatives rejected:** (a) cut entirely (simplifier) — the code is merged
+and tested; deleting working observability to shorten the spec is backwards,
+and count-comparison detection assumes someone is counting; (b) keep + fully
+define path/format/rotation/reader (ontologist) — lifecycle machinery is
+gold-plating for a v1 plumbing hook; (d) single logger call to shared debug
+infra — no such shared infra exists to call.
+**Rationale (Claude, judgment delegated by Levi 2026-07-11):** demotion is the
+only exit that makes the spec honest without churning merged, tested code;
+it adopts contrarian's framing while keeping DEC-009's discoverability goal.
+**Context:** /spec revise (iteration 1), concern shared by all three personas
+(review v001-2026-07-01-1638); closes SPP 2026-07-11-1412 open item #2.
