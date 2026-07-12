@@ -8,7 +8,7 @@
 | **JSONL schema** (keystone) | store | built | **built** ✅ (iter 1 closed 06-26; **iter 2 merged 07-11**: D1/D2/D3) | 1 | — | `deliverables/03_spec-stubs/1_jsonl-schema.md` |
 | **Mobile shortcut** (wedge) | capture | spec | **stub-ready** | 2 | schema | `…/2_mobile-shortcut.md` |
 | **Prompt-capture hook** | capture | spec | **spec in-review** (rev 2, panel 07-01 unfolded) + **Phase-1 code merged 07-11** (not installed) | 3 | schema + D1–D3 ✅ (Phase 2 only) | `…/3_prompt-capture-hook.md` → `parts/prompt-capture-hook/spec/` |
-| **Minimal computer dropper + editable table view** *(new, DEC-007)* | capture/store | spec | **pending** (split from wrapper; pulled forward; spike + stub in full-pass workspace) | 4 | schema | — (needs stub; draft at full-pass `05_spec-stub_minimal-computer-dropper.md`) |
+| **Minimal computer dropper + editable table view** *(new, DEC-007)* | capture/store | spec | **stub-ready** (split from wrapper; pulled forward; spike at `spikes/computer-dropper/`) | 4 | schema | `…/7_minimal-computer-dropper.md` |
 | **Thread extraction/typing/routing** | ingest→thread | scope (needs `/scope` before `/spec`) | **stub-ready** | 5 | schema (thread-aware) + corpus | `…/4_thread-extraction.md` |
 | **Thread ledger** | thread | scope | **stub-ready** | 6 | extraction | `…/5_thread-ledger.md` |
 | **App wrapper** (full filing UX — hard) | capture | scope/spec | **stub-ready** (deferred last; Excel retires only after new part 4) | 7 | schema (+ extraction for filing UX) | `…/6_app-wrapper.md` |
