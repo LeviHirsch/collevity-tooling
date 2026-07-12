@@ -9,8 +9,10 @@ Named `collevity-tooling` (not `collevity`) deliberately: it scopes to *code/pro
 
 | Folder | What it is | Status |
 |---|---|---|
-| `dropper-pipeline/` | capture → store → ingest → thread pipeline; first joint S3/A3 test | active (migrated w/ history) |
-| `claude-account-switcher/` | concurrent multi-account Claude Code tooling | seeded; spec next |
+| `dropper-pipeline/` | capture → store → ingest → thread pipeline; first joint S3/A3 test | active — part 1 built (iter 2 merged 07-11); hook Phase-1 code merged, spec in-review, not installed; see its `PROGRESS.md` |
+| `claude-account-switcher/` | concurrent multi-account Claude Code tooling | built + verified (v1, phase 4 audit 07-01; OAuth-URL fix landed) |
+| `iterative-draft-review/` | Rubric-Anchored Blind Iteration — reusable method/skill for judged written deliverables | seeded 2026-07-01; spec next |
+| `records-filer/` | records filing skill + watcher (scoping) | seeded; uncommitted — WATCHER-SCOPING.md open |
 
 ## Public releases
 

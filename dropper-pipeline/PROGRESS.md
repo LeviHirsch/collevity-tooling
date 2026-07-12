@@ -5,14 +5,16 @@
 
 | Part | Half | Altitude (final) | State | Op-path order | Depends on | Stub |
 |---|---|---|---|---|---|---|
-| **JSONL schema** (keystone) | store | spec'd + built (iter 1 closed) | **built** ✅ | 1 | — | `deliverables/03_spec-stubs/1_jsonl-schema.md` |
+| **JSONL schema** (keystone) | store | built | **built** ✅ (iter 1 closed 06-26; **iter 2 merged 07-11**: D1/D2/D3) | 1 | — | `deliverables/03_spec-stubs/1_jsonl-schema.md` |
 | **Mobile shortcut** (wedge) | capture | spec | **stub-ready** | 2 | schema | `…/2_mobile-shortcut.md` |
-| **Prompt-capture hook** | capture | spec | **stub-ready** | 3 | schema | `…/3_prompt-capture-hook.md` |
-| **Thread extraction/typing/routing** | ingest→thread | scope (needs `/scope` before `/spec`) | **stub-ready** | 4 | schema (thread-aware) + corpus | `…/4_thread-extraction.md` |
-| **Thread ledger** | thread | scope | **stub-ready** | 5 | extraction | `…/5_thread-ledger.md` |
-| **App wrapper** (Excel replacement — hard) | capture | scope/spec | **stub-ready** | 6 (deferred last) | schema (+ extraction for filing UX) | `…/6_app-wrapper.md` |
+| **Prompt-capture hook** | capture | spec | **spec in-review** (rev 2, panel 07-01 unfolded) + **Phase-1 code merged 07-11** (not installed) | 3 | schema + D1–D3 ✅ (Phase 2 only) | `…/3_prompt-capture-hook.md` → `parts/prompt-capture-hook/spec/` |
+| **Minimal computer dropper + editable table view** *(new, DEC-007)* | capture/store | spec | **pending** (split from wrapper; pulled forward; spike + stub in full-pass workspace) | 4 | schema | — (needs stub; draft at full-pass `05_spec-stub_minimal-computer-dropper.md`) |
+| **Thread extraction/typing/routing** | ingest→thread | scope (needs `/scope` before `/spec`) | **stub-ready** | 5 | schema (thread-aware) + corpus | `…/4_thread-extraction.md` |
+| **Thread ledger** | thread | scope | **stub-ready** | 6 | extraction | `…/5_thread-ledger.md` |
+| **App wrapper** (full filing UX — hard) | capture | scope/spec | **stub-ready** (deferred last; Excel retires only after new part 4) | 7 | schema (+ extraction for filing UX) | `…/6_app-wrapper.md` |
 
 > **Op-path change from provisional:** app wrapper moved 4→6 (expensive, non-blocking — shortcut+hook+Excel cover capture meanwhile); extraction+ledger pulled up to 4–5 (the actual payoff once capture flows).
+> **Op-path change 07-11 (DEC-007 absorbed):** minimal computer dropper + editable view split from the wrapper and pulled forward to slot 4; extraction/ledger/wrapper shift to 5/6/7. Excel stays a transition capture channel until the new part 4 lands.
 
 ## Notes
 - Keystone = **JSONL schema**; both halves (capture/store + ingest/thread) depend on it. Sequence it first.
@@ -43,3 +45,33 @@
     - **▶ RESUME COMMAND:** say **"continue the JSONL schema spec interview"** (or "resume DP-1 schema"). A fresh session: read this PROGRESS → `parts/jsonl-schema/spec/state.yaml` (phase `interviewing`) + the session file's **"⏸ PAUSED — resume checkpoint"** + `decisions.log` (DEC-001..009) → pick up at "Lock #1–#4." Do NOT restart the interview; resume it.
 - **2026-06-26 — JSONL SCHEMA BUILT + LIVE → part 1 DONE.** `/spec` iteration 1 closed (greenfield, `parts/jsonl-schema/`): Phase 1 (schema + `append_entry`/`edit_entry`/`read_day`/`sync_sources` storage seam over append-dominant JSONL) + Phase 2 (Excel-blind bridge + sidecar + one-shot tz backfill). Audited + verified: **28/28 ACs PASS, 36 tests green**. Live migration run → `03_TACTIC/_DATA/collevity_lake.jsonl` (945 entries, outside the repo per DEC-022). Dropper↔lake seam validated end-to-end against live data (append / in-place edit / idempotent skip). `/checkin`'s `read_dropper_day.py` **repointed Excel→JSONL lake** — composes `sync_sources()`→`read_day()` itself (DEC-019), output format unchanged, day-filtering preserved. Spent backfill deleted (recoverable at git 782aaec). Decisions DEC-001..025 in `parts/jsonl-schema/spec/decisions.log`; takeaway in `…/spec/takeaway.md`.
     - **Keystone done → unblocks the rest.** Next op-path slots: **part 2 (mobile shortcut)** + **part 3 (prompt-capture hook)** — both capture surfaces that push directly via `append_entry` (no bridge). Each is its own `/spec`. Excel retirement waits on part 6 (native computer-capture surface). Which part is next = Levi's orchestration call.
+- **2026-06-29 → 07-01 — HOOK SPEC (part 3) interview + revise + review 2.**
+  `parts/prompt-capture-hook/spec/`: greenfield interview (06-29), revision 2
+  per review 1 (DEC-009..015, 06-30), review panel 2 (07-01, archived, **not
+  yet folded** — headline open call: AC4.3 error-sidecar keep/demote/cut).
+  `phase: in-review`. Cross-part deps on part 1 identified: D1 read_day
+  sub-minute order · D2 settle compaction · D3 concurrent-append safety.
+  A 07-01 `/spec revise` session (saved 07-11, SPP `2026-07-11-1412_prompt-capture-hook-revise`)
+  stopped mid-Turn-2; no spec changes committed — decisions D3/AC4.3 left open.
+- **2026-07-11 — COLLEVITY FULL PASS (fork build) → RECONCILED + MERGED same day.**
+  Workspace `02_CONTENT/collevity-full-pass_2026-07-11/` (class GENERATED; strategy
+  docs there = unratified input). Under the isolate-as-fork directive, the pass
+  built part-1 **iteration 2 (D1/D2/D3)** and **hook Phase 1** in a fork, tested
+  against a live-lake COPY (1068 entries, rehearsal passed). Reconciliation
+  (evening session): concurrent revise-session made **no spec changes** (decisions.log
+  still ends DEC-015; spec_sha 418e29f unchanged; fork built against same revision) →
+  **no drift; fork merged into this tree**: `lake.py` + tests (44/44 green in live
+  tree) and `parts/prompt-capture-hook/{hook,tests,INSTALL.md}` (11/11 green).
+  **D1/D2/D3 are now LANDED** — the SPP's open D3 sequencing question (A/B/C) is
+  dissolved: safety lives in part-1 `append_entry`/`edit_entry` via `_pool_lock`
+  flock sidecar, per DEC-015's direction. Record as a DEC when the hook spec
+  converges. **Install fact:** part-1 venv does NOT have `collevity` importable —
+  hook command must set PYTHONPATH (INSTALL.md). Tests must run from inside the
+  part dir (`python -m pytest` cwd-on-path).
+  **NEXT:** (1) Levi: git commit sweep (explicit paths — pre-existing dirty state
+  first, then iter-2, then hook part; never `git add -A`), (2) resume `/spec revise`
+  on hook spec — AC4.3 is the one open judgment (code as merged implements KEEP;
+  cutting = delete `_breadcrumb` + 1 test), then converge, (3) guarded install per
+  INSTALL.md — Levi's explicit go flips capture LIVE, (4) then part 2 (mobile
+  shortcut) `/spec` (pre-spec finding: direct pool-write violates seam/id rules →
+  inbox+bridge; see full-pass `07_mobile-shortcut-prespec.md`) or new part 4 stub.
