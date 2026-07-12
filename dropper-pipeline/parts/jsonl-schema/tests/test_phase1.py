@@ -151,10 +151,13 @@ def test_edit_cannot_change_id(pool):  # AC2.2
 
 # --- AC3: check-in read seam ----------------------------------------------
 
-def test_read_day_returns_text_time_shape(pool):  # AC3.1
+def test_read_day_returns_text_time_shape(pool):  # AC3.1, D1
     append_entry(floor(text="morning", created_at="2026-06-24T09:05:00-04:00"), pool_path=pool)
     rows = read_day("2026-06-24", pool_path=pool)
-    assert rows == [{"text": "morning", "time": "09:05"}]
+    # {text, time} contract intact; created_at passthrough is additive (D1).
+    assert rows == [
+        {"text": "morning", "time": "09:05", "created_at": "2026-06-24T09:05:00-04:00"}
+    ]
 
 
 def test_read_day_sorted_by_time(pool):  # AC3.1
@@ -200,4 +203,4 @@ def test_sync_then_read_composition(pool):  # AC5.1, DEC-019
     append_entry(floor(text="drop", created_at="2026-06-24T10:00:00-04:00"), pool_path=pool)
     sync_sources()
     rows = read_day("2026-06-24", pool_path=pool)
-    assert rows == [{"text": "drop", "time": "10:00"}]
+    assert [(r["text"], r["time"]) for r in rows] == [("drop", "10:00")]

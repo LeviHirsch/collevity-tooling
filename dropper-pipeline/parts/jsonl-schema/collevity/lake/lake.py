@@ -19,8 +19,10 @@ code tree (the data outlives the code).
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date as date_cls, datetime
 from pathlib import Path
@@ -55,6 +57,29 @@ def _resolve_pool(pool_path: str | os.PathLike | None) -> Path:
     return Path(env) if env else _DEFAULT_POOL
 
 
+# --- writer lock (D3, hook-spec DEC-015) ------------------------------------
+# Global hook scope makes concurrent writers realistic (two Claude Code sessions
+# appending at once). A plain `open("a")` + single write is *usually* atomic on
+# local APFS, but that guarantee is informal and weakens under iCloud (DEC-022).
+# All mutation paths therefore serialize on one advisory flock. The lock target
+# is a stable sidecar file (`<pool>.lock`), NOT the pool itself — `_rewrite_all`
+# swaps the pool's inode via os.replace, which would silently orphan a lock held
+# on the old inode. Advisory = only seam writers honor it; readers stay lock-free
+# (os.replace keeps reads torn-free, matching today's behavior).
+
+@contextmanager
+def _pool_lock(pool: Path):
+    """Hold an exclusive advisory lock for one mutation (append/rewrite)."""
+    pool.parent.mkdir(parents=True, exist_ok=True)
+    lockfile = pool.with_suffix(pool.suffix + ".lock")
+    with lockfile.open("a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 # --- low-level JSONL i/o (private; the seam funcs are the public surface) ---
 
 def _read_all(pool: Path) -> list[dict]:
@@ -74,6 +99,9 @@ def _read_all(pool: Path) -> list[dict]:
 
 
 def _append_line(pool: Path, entry: dict) -> None:
+    # Unlocked primitive — callers hold `_pool_lock` (locking here would
+    # deadlock callers that already hold it: flock treats a second fd on the
+    # same file as an independent, conflicting lock).
     pool.parent.mkdir(parents=True, exist_ok=True)
     with pool.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -85,6 +113,10 @@ def _rewrite_all(pool: Path, entries: list[dict]) -> None:
     O(n) per edit — cheap and correct at single-user scale (DEC-011). Atomic
     replace avoids a torn file if the write is interrupted (a small mitigation
     for the iCloud/multi-surface edit window flagged in DEC-006).
+
+    Unlocked primitive — callers hold `_pool_lock` across their whole
+    read-modify-write, otherwise a concurrent append lands on the old inode
+    between `_read_all` and `os.replace` and is silently lost (D3).
     """
     pool.parent.mkdir(parents=True, exist_ok=True)
     tmp = pool.with_suffix(pool.suffix + ".tmp")
@@ -114,7 +146,9 @@ def append_entry(entry: dict, pool_path: str | os.PathLike | None = None) -> str
     record["id"] = _mint_id()
     validate(record)  # enforce the full field contract before it touches disk
 
-    _append_line(_resolve_pool(pool_path), record)
+    pool = _resolve_pool(pool_path)
+    with _pool_lock(pool):  # serialize concurrent capture surfaces (D3)
+        _append_line(pool, record)
     return record["id"]
 
 
@@ -134,20 +168,23 @@ def edit_entry(
         raise ValueError("cannot change an entry's id")
 
     pool = _resolve_pool(pool_path)
-    entries = _read_all(pool)
+    # Lock across the whole read-modify-write: a concurrent append between
+    # _read_all and _rewrite_all would otherwise be silently dropped (D3).
+    with _pool_lock(pool):
+        entries = _read_all(pool)
 
-    found = False
-    for i, entry in enumerate(entries):
-        if entry.get("id") == entry_id:
-            updated = {**entry, **changes, "id": entry_id}
-            validate(updated)
-            entries[i] = updated
-            found = True
-            break
-    if not found:
-        raise KeyError(f"no entry with id {entry_id!r}")
+        found = False
+        for i, entry in enumerate(entries):
+            if entry.get("id") == entry_id:
+                updated = {**entry, **changes, "id": entry_id}
+                validate(updated)
+                entries[i] = updated
+                found = True
+                break
+        if not found:
+            raise KeyError(f"no entry with id {entry_id!r}")
 
-    _rewrite_all(pool, entries)
+        _rewrite_all(pool, entries)
     return entries[i]
 
 
@@ -187,16 +224,30 @@ def read_day(
     **local-day-of-offset** `created_at` (AC3.2) and returned sorted by time.
 
     `day` may be a `datetime.date` or an ISO date string ('YYYY-MM-DD').
+
+    Ordering is **sub-minute** (D1, hook-spec DEC-013): rows sort by the full
+    parsed `created_at` (aware datetimes — correct even across mixed offsets),
+    not by the displayed 'HH:MM' string, so two hook captures inside the same
+    minute keep their true order. The surfaced `time` stays 'HH:MM' (legacy
+    /checkin parity, DEC-013 verify); full precision is surfaced additively via
+    each row's `created_at` passthrough.
     """
     target = day if isinstance(day, date_cls) else date_cls.fromisoformat(day)
 
-    rows = [
-        {"text": e["text"], "time": _local_time_hm(e["created_at"])}
+    matches = [
+        e
         for e in _read_all(_resolve_pool(pool_path))
         if _local_day(e["created_at"]) == target
     ]
-    rows.sort(key=lambda r: r["time"])
-    return rows
+    matches.sort(key=lambda e: datetime.fromisoformat(e["created_at"]))
+    return [
+        {
+            "text": e["text"],
+            "time": _local_time_hm(e["created_at"]),
+            "created_at": e["created_at"],
+        }
+        for e in matches
+    ]
 
 
 # --- the seam: pull-ingest boundary (AC5.1, DEC-018) -----------------------
@@ -223,6 +274,28 @@ class SyncResult:
     entries_ingested: int
 
 
+def _compact_chronological(pool: Path) -> bool:
+    """Settle-time compaction (D2, hook-spec DEC-012): sort the pool by
+    `created_at` if it is out of order. Returns True iff a rewrite happened.
+
+    Live push surfaces (the prompt-capture hook) append in arrival order; the
+    Excel bridge batch-appends older-timestamped rows on sync — so between
+    settles the physical file is not chronological. `created_at` stays the
+    chronological source of truth; this just realigns the file with it so only
+    the transient live tail (appends since the last settle) is ever unsorted.
+    No-op (no rewrite, no mtime churn) when already sorted — the common case.
+    Sort is stable, so exact-tie stamps keep their arrival order.
+    """
+    with _pool_lock(pool):  # settle is a read-modify-write (D3)
+        entries = _read_all(pool)
+        keys = [datetime.fromisoformat(e["created_at"]) for e in entries]
+        if keys == sorted(keys):
+            return False
+        entries.sort(key=lambda e: datetime.fromisoformat(e["created_at"]))
+        _rewrite_all(pool, entries)
+        return True
+
+
 def sync_sources() -> SyncResult:
     """Bring pull-based sources current.
 
@@ -243,7 +316,12 @@ def sync_sources() -> SyncResult:
         return SyncResult(sources_synced=0, entries_ingested=0)
     # -----------------------------------------------------------------------
     if not excel.source_present():
-        # Bridge registered, but no Dropper to pull → zero work, like Phase 1.
+        # Bridge registered, but no Dropper to pull → zero ingest work; still
+        # settle (live-tail appends may be unsorted even with nothing to pull).
+        _compact_chronological(_resolve_pool(None))
         return SyncResult(sources_synced=0, entries_ingested=0)
     ingested = excel.ingest()
+    # Settle (D2): batch-ingested older rows land after newer live-tail appends;
+    # restore physical chronological order before the consumer's read.
+    _compact_chronological(_resolve_pool(None))
     return SyncResult(sources_synced=1, entries_ingested=ingested)

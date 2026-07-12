@@ -163,9 +163,8 @@ def test_deleting_bridge_reverts_sync_to_noop_core_intact(paths, monkeypatch):  
     result = sync_sources()
     assert (result.sources_synced, result.entries_ingested) == (0, 0)
     # Core JSONL + read_day untouched by the bridge's absence.
-    assert read_day("2026-06-24", pool_path=paths["pool"]) == [
-        {"text": "pushed", "time": "08:00"}
-    ]
+    rows = read_day("2026-06-24", pool_path=paths["pool"])
+    assert [(r["text"], r["time"]) for r in rows] == [("pushed", "08:00")]
 
 
 # --- AC4.6 / AC5.2: runs under sync_sources, single ingester, no registry ---
@@ -178,9 +177,8 @@ def test_sync_sources_runs_the_one_bridge(paths, monkeypatch):  # AC4.6, AC5.2
     result = sync_sources()
     assert (result.sources_synced, result.entries_ingested) == (1, 1)
     # Composition the one v1 consumer uses (AC5.1): sync then pure read.
-    assert read_day("2026-06-24", pool_path=paths["pool"]) == [
-        {"text": "drop", "time": "10:00"}
-    ]
+    rows = read_day("2026-06-24", pool_path=paths["pool"])
+    assert [(r["text"], r["time"]) for r in rows] == [("drop", "10:00")]
 
 
 def test_sync_idempotent_within_session(paths, monkeypatch):  # AC4.6
