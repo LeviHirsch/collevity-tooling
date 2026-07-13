@@ -92,3 +92,9 @@ stops immediately; nothing else to undo (already-captured entries stay, DEC-014)
   (DEC-010), not the hook's.
 - iCloud file eviction of the script would mean lost captures + breadcrumbs,
   never blocked prompts.
+- **Torn-write on timeout-kill** (DEC-021) — if a stall trips the `timeout` and
+  Claude Code SIGKILLs the hook mid-append, a partial JSONL line is *possible*
+  (low probability). Because part-1's reader currently raises on a corrupt line,
+  that would break lake reads until the bad line is removed. The real fix (reader
+  tolerance / crash-safe append) is part-1's, deferred as D-001; not gating this
+  install. On a timeout the prompt still submits.

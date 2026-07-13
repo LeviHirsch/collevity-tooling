@@ -1,7 +1,7 @@
 # Prompt-Capture Hook — Specification
 
 > Status: draft
-> Revision: 4
+> Revision: 5
 > Last updated: 2026-07-13
 
 ## Open questions
@@ -41,7 +41,8 @@ Install a global Claude Code `UserPromptSubmit` hook that appends every user pro
 - **Accepted risks (owned limitations):**
   - **Capture loss can be traceless (DEC-017):** if the lake write fails *and* the best-effort sidecar breadcrumb also fails, the capture vanishes with zero trace. Fail-open is the prioritized guarantee; observability of loss is best-effort only.
   - **iCloud multi-machine concurrency (DEC-016):** conflict-copy files remain possible if two machines append while offline from each other; single-machine concurrency is locked (D3).
-  - **A same-machine stall bounds delay, it does not block (DEC-018):** the hook writes *synchronously* from Claude Code's perspective, so a stalled append (iCloud file materialization, or advisory-lock contention behind D3) can *delay* — not fail — prompt submission. The hook adds **no internal watchdog** (that mechanism belongs to Claude Code, not this thin writer — DEC-015); instead the installed hook entry carries an explicit modest `timeout` (see AC1.1 / `../INSTALL.md`), so the worst-case wait is small. On timeout Claude Code kills the command; per the hook exit-code contract a non-2 exit (including a signal-kill) is **non-blocking**, so the prompt proceeds and only that one capture is dropped to the breadcrumb — fail-open preserved. (Claude Code's docs are silent on whether a *timeout* is specifically treated as blocking; the modest explicit timeout keeps any worst case small either way, and Claude Code's own default for `UserPromptSubmit` command hooks is 30s.)
+  - **A same-machine stall delays, it does not block (DEC-018):** the hook writes *synchronously*, so a stalled append (iCloud materialization or D3 lock contention) can delay — not fail — submission. The hook adds no internal watchdog (Claude Code's job, not this thin writer — DEC-015); the installed entry's explicit `timeout` (AC1.1) bounds the wait. On timeout Claude Code kills the command; a non-2 exit (incl. signal-kill) is non-blocking, so the prompt proceeds and only that one capture is lost. (Claude Code's docs don't classify a *timeout* explicitly; the small timeout bounds the worst case regardless — its `UserPromptSubmit` default is 30s.)
+  - **Torn-write on kill is a low-probability residual (DEC-021):** a timeout-kill could in principle interrupt the single buffered append mid-flush, leaving a partial JSONL line — and part-1's `_read_all` currently *raises* on a corrupt line, so one torn line would break lake reads until repaired. Probability is low (one small buffered write to the local materialization; the triggering stall is usually *pre-write*) and the vector is inherent to any synchronous stall-capable hook — it exists at Claude Code's 30s default too, not created by the chosen timeout. The real hardening (reader tolerance of a bad line and/or crash-safe append) is **part-1's**, deferred (D-001); it does not gate this install.
 
 ## Success criteria
 
@@ -69,7 +70,7 @@ Install a global Claude Code `UserPromptSubmit` hook that appends every user pro
 
 ### AC1. Hook is installed and fires on every prompt submission
 
-- AC1.1. `~/.claude/settings.json` contains a `UserPromptSubmit` hook entry with a `command` value pointing to the capture script at a stable absolute path, and carrying an explicit bounded `timeout` so a stalled write cannot delay submission beyond it (DEC-018). The entry **coexists** with any other `UserPromptSubmit` hooks — installation adds this entry to the event's array, it does not replace existing entries.
+- AC1.1. `~/.claude/settings.json` contains a `UserPromptSubmit` hook entry with a `command` value pointing to the capture script at a stable absolute path, and carrying an explicit bounded `timeout` — a small number of seconds (installed at 10s), not exceeding Claude Code's 30s `UserPromptSubmit` default — so a stalled write cannot delay submission beyond it (DEC-018). The entry **coexists** with any other `UserPromptSubmit` hooks — installation adds this entry to the event's array, it does not replace existing entries.
 - AC1.2. The capture script exists at the referenced path, is executable, and exits 0 on a nominal (successful-write) run.
 
 ### AC2. Entry payload is correct on every write
@@ -89,6 +90,8 @@ Install a global Claude Code `UserPromptSubmit` hook that appends every user pro
 
 - AC4.1. When the lake write raises any exception (I/O error, validation error, import error, missing env var), the hook swallows it and exits 0 with empty stdout — the prompt is never blocked, delayed, or erased. (Critical: for `UserPromptSubmit`, exit code 2 blocks and erases the prompt; the hook must never exit 2.)
 - AC4.2. The hook produces no stdout output during a nominal (successful-write) run that would be interpreted by Claude Code as hook output.
+
+> **Scope note (AC4):** AC4.1 covers exceptions raised *inside* the write path — the failures the hook can catch and swallow. External termination by Claude Code (a `timeout` signal-kill on a stall) is deliberately **out of this test surface**: it is not an in-process exception, so its non-blocking outcome rests on Claude Code's exit-code contract (non-2 → non-blocking, DEC-018) and is confirmed at rollout, not by a unit AC. (Mirrors how AC3.1 scopes concurrent-append line integrity out to part-1's D3.)
 
 > **Implementation note (demoted from AC4.3, DEC-017):** on any swallowed failure the shipped script makes a **best-effort** append of one diagnostic line (`ISO-timestamp — error summary`) to an error sidecar (`hook/capture_errors.log` beside the script; override `COLLEVITY_HOOK_ERRLOG`). Any failure of that append is itself swallowed — AC4.1's exit-0/empty-stdout discipline always wins. This is observability, not a guarantee; the residual (both writes fail → traceless loss) is an accepted risk in Constraints.
 

@@ -324,3 +324,34 @@ tradeoff.
 directly into the spec/INSTALL edits (composability note on AC1.1; single-fire
 observation in the INSTALL rollout check; duplicate Open-Questions stub trimmed).
 **Related:** AC2.1.
+
+## DEC-021 — Torn-write on timeout-kill is a low-probability residual; reader/append hardening is part-1's, deferred
+**Decision:** The DEC-018 timeout can, in principle, SIGKILL the hook mid-append and
+leave a partial JSONL line; because part-1's `_read_all` *raises* on a corrupt line,
+one torn line would break lake reads (read_day / sync / edit) until repaired.
+Accepted as a low-probability residual, documented in Constraints. The real
+hardening — reader tolerance of a bad line (skip-and-warn) and/or crash-safe append
+(fsync / atomic-tmp) — is **part-1 (jsonl-schema) territory**, not hook work; filed
+as deferred item D-001 (candidate part-1 iteration-3 AC). Install is **not** gated
+on it. Also folded in this revise: AC1.1 now names the timeout value bound (10s,
+≤ Claude Code's 30s default; contrarian), AC4 gains a scope note that the
+timeout/signal-kill path is out of AC4.1's exception-test surface (ontologist), and
+the DEC-018 Constraints bullet was trimmed of restated prose (simplifier).
+**Alternatives rejected:** (a) harden inside the hook (fsync / atomic write in the
+capture script) — wrong layer; append crash-safety is a property of the lake seam,
+reused by every writer, so it belongs to part-1 (reaffirms DEC-015); (b) drop the
+explicit timeout to dodge the kill — the vector is inherent to any synchronous
+stall-capable hook and exists at Claude Code's 30s default regardless, so this
+trades a real delay-bound for no reduction in torn-write risk; (c) gate install on
+a part-1 fix — probability is low and gating stalls a built, tested hook
+indefinitely (mirrors DEC-016's "don't gate on a landed-later dependency").
+**Rationale (Claude, judgment delegated by Levi 2026-07-13):** verified the code —
+`_append_line` is one small buffered write flushed at close (a pre-flush kill loses
+the whole line cleanly; a mid-flush torn line needs a kill inside a single <4KB
+write() syscall, improbable on local APFS), and the triggering stall is typically
+pre-write (materialization / flock). Low probability, high blast radius (whole-file
+read break) — so: name it, defer the fix to the layer that owns it, don't gate.
+**Context:** /spec revise (iteration 1), addressing the contrarian "torn-write /
+SIGKILL" finding and the ontologist "no AC covers the timeout-kill path" finding
+(review v001-2026-07-13-1827) — the second convergence-loop pass.
+**Related:** AC1.1, AC4, Constraints (accepted risks), D-001.
