@@ -255,3 +255,72 @@ only exit that makes the spec honest without churning merged, tested code;
 it adopts contrarian's framing while keeping DEC-009's discoverability goal.
 **Context:** /spec revise (iteration 1), concern shared by all three personas
 (review v001-2026-07-01-1638); closes SPP 2026-07-11-1412 open item #2.
+
+## DEC-018 — A same-machine stall bounds delay, not blocks; explicit hook timeout, no in-hook watchdog
+**Decision:** The "never delay" fail-open guarantee is bounded, not absolute. The
+hook runs synchronously from Claude Code's perspective, so a stalled `append_entry`
+(iCloud file materialization, or advisory-lock contention behind D3) can *delay* —
+not fail — prompt submission. Resolution, three parts: (a) document the bound as an
+accepted risk in Constraints; (b) set an explicit modest `timeout` (10s) on the
+installed `UserPromptSubmit` hook entry so the worst-case wait is small; (c) add
+**no** internal watchdog to the hook itself. AC1.1 amended to require the entry
+carry an explicit bounded `timeout`.
+**Alternatives rejected:** (a) in-hook timeout/watchdog (`signal.alarm` or a
+thread with `join(timeout=…)`) — wrong layer (duplicates a mechanism Claude Code
+already owns; reaffirms DEC-015) and does not compose cleanly with the D3 flock;
+(b) detached/double-forked background writer — true non-blocking but real
+complexity, orphan-process risk, and harder to test — gold-plating for a v1
+plumbing hook; (c) leave Claude Code's 30s default and only document — acceptable,
+but a 30s worst-case wait is worse than a free config tightening to 10s.
+**Rationale (Claude, judgment delegated by Levi 2026-07-13):** verified against the
+Claude Code hook docs — for `UserPromptSubmit`, exit 2 blocks/erases, but **any
+other exit (including a signal-kill on timeout) is non-blocking**, so a
+timeout-killed stall lets the prompt proceed and drops only that one capture to the
+breadcrumb (fail-open preserved). The docs are *silent* on whether a timeout is
+specifically treated as blocking; the modest explicit timeout keeps any worst case
+small regardless of that ambiguity.
+**Context:** /spec revise (iteration 1), addressing the ontologist + contrarian
+"hang ≠ failure" concern — flagged by both as the single biggest risk (review
+v001-2026-07-13-1753).
+**Related:** AC1.1, AC4.1, Constraints (accepted risks).
+
+## DEC-019 — Live UserPromptSubmit hook chosen over Claude Code transcript-mining
+**Decision:** Prompts are captured via a live `UserPromptSubmit` hook that writes
+into the unified lake, rather than by retroactively mining Claude Code's own
+session transcripts.
+**Alternatives rejected:** (a) transcript-mining — format-coupled to Claude Code's
+private transcript layout and lifecycle, retroactive rather than at-capture, and
+produces entries *outside* the lake substrate that then need reconciling in;
+(b) both paths — redundant capture with reconciliation cost for no v1 benefit.
+**Rationale:** the lake is the single Dropper substrate — one schema, one timestamp
+convention, one read/triage/thread path across all sources; a hook drops each
+prompt straight in at capture with a canonical `created_at`. That directness is the
+whole point of the layer.
+**Context:** /spec revise (iteration 1), addressing the contrarian "problem
+statement" challenge — why a live hook rather than mining an existing transcript
+source (review v001-2026-07-13-1753).
+**Related:** Goal.
+
+## DEC-020 — Review-2 (2026-07-13) rejected dispositions
+**Decision:** Four review concerns were rejected, with reasons: (1) simplifier "cut
+the Success Criteria section" — **kept**; the narrative, guarantee-level criteria
+serve human review and are currently in sync with the AC tree, and layering
+readable prose over testable leaves is intentional, not drift. (2) simplifier "cut
+the `COLLEVITY_HOOK_ERRLOG` override" — **kept**; it is merged, tested, three lines,
+and provides a real knob (redirect the breadcrumb off iCloud so file eviction can't
+lose it) — deleting working, tested observability to save lines is the same
+anti-pattern DEC-017 already rejected. (3) simplifier "Open-Q2 rollout caveat is
+stale" — **kept**; install has *not* happened yet, so the one-time stdin-echo
+confirmation is still pending (it runs during this very install), not a completed
+dead note. (4) contrarian "AC2.1 verbatim is unbounded" — **no change**; verbatim
+capture with JSON encoding (which handles control/unicode bytes) and no size cap is
+the intended contract (no-truncation is an explicit AC), and the sensitive-content-
+at-global-scope angle is already owned by DEC-014.
+**Rationale:** none of the four improves the spec — each would remove intentional
+layering, delete merged/tested code, misread install status, or reopen a settled
+tradeoff.
+**Context:** /spec revise (iteration 1), dispositions on review v001-2026-07-13-1753
+(simplifier + contrarian). Accepted concerns from the same review were folded
+directly into the spec/INSTALL edits (composability note on AC1.1; single-fire
+observation in the INSTALL rollout check; duplicate Open-Questions stub trimmed).
+**Related:** AC2.1.
