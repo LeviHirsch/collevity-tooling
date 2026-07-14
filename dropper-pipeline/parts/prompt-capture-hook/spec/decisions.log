@@ -355,3 +355,24 @@ read break) — so: name it, defer the fix to the layer that owns it, don't gate
 SIGKILL" finding and the ontologist "no AC covers the timeout-kill path" finding
 (review v001-2026-07-13-1827) — the second convergence-loop pass.
 **Related:** AC1.1, AC4, Constraints (accepted risks), D-001.
+
+## DEC-022 — Spec converged at df51ed6 (2026-07-13)
+**Decision:** The prompt-capture-hook spec is converged at Rev 5 (commit df51ed6).
+**Rationale (human-judged convergence, Levi's go 2026-07-13):** three review passes
+in one loop — pass 1 (v001-2026-07-13-1753) found the stall gap → fixed via the
+explicit hook timeout (DEC-018); pass 2 (v001-2026-07-13-1827) found that fix's
+torn-write residual → accepted + real hardening deferred to part-1 (DEC-021, D-001);
+pass 3 (v001-2026-07-13-1835) came back **clean on all three personas** (ontologist
+"clean pass," contrarian "no new material risk… converges," simplifier "converged").
+The findings shrank from must-fix → accept/defer → nothing: direct evidence the spec
+stopped moving.
+**Alternatives rejected:** (a) apply the mechanical stop rule literally (two
+consecutive wording-only revisions) — it would read "not converged" because Rev 5
+was structural, but that rule is a proxy for "spec stopped moving," and a clean pass
+yielding zero changes is stronger direct evidence; forcing cosmetic Rev 6/Rev 7 to
+satisfy the letter is ceremony; (b) run a fourth review pass — the stopping rule set
+before pass 3 (converge unless a *must-fix mechanism* appears) was met.
+**Context:** /spec check (iteration 1), convergence declared on clean-pass evidence.
+Next: guarded install per ../INSTALL.md (settings.json write held for Levi's explicit
+go); then Phase-2 live verification (AC5.1).
+**Related:** whole spec.
