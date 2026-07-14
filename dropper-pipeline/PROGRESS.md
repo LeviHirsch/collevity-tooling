@@ -7,7 +7,7 @@
 |---|---|---|---|---|---|---|
 | **JSONL schema** (keystone) | store | built | **built** ✅ (iter 1 closed 06-26; **iter 2 merged 07-11**: D1/D2/D3) | 1 | — | `deliverables/03_spec-stubs/1_jsonl-schema.md` |
 | **Mobile shortcut** (wedge) | capture | spec | **stub-ready** | 2 | schema | `…/2_mobile-shortcut.md` |
-| **Prompt-capture hook** | capture | spec | **spec in-review** (rev 2, panel 07-01 unfolded) + **Phase-1 code merged 07-11** (not installed) | 3 | schema + D1–D3 ✅ (Phase 2 only) | `…/3_prompt-capture-hook.md` → `parts/prompt-capture-hook/spec/` |
+| **Prompt-capture hook** | capture | built | **built + LIVE** ✅ (spec converged Rev 5 07-13 @ df51ed6; installed in `~/.claude/settings.json` + verified live — AC1–AC5 all green) | 3 | schema + D1–D3 ✅ | `…/3_prompt-capture-hook.md` → `parts/prompt-capture-hook/spec/` |
 | **Minimal computer dropper + editable table view** *(new, DEC-007)* | capture/store | spec | **stub-ready** (split from wrapper; pulled forward; spike at `spikes/computer-dropper/`) | 4 | schema | `…/7_minimal-computer-dropper.md` |
 | **Thread extraction/typing/routing** | ingest→thread | scope (needs `/scope` before `/spec`) | **stub-ready** | 5 | schema (thread-aware) + corpus | `…/4_thread-extraction.md` |
 | **Thread ledger** | thread | scope | **stub-ready** | 6 | extraction | `…/5_thread-ledger.md` |
@@ -75,3 +75,27 @@
   INSTALL.md — Levi's explicit go flips capture LIVE, (4) then part 2 (mobile
   shortcut) `/spec` (pre-spec finding: direct pool-write violates seam/id rules →
   inbox+bridge; see full-pass `07_mobile-shortcut-prespec.md`) or new part 4 stub.
+- **2026-07-13 — HOOK (part 3) CONVERGED + INSTALLED + LIVE → part 3 DONE.**
+  One session: `/spec check` (Rev 3 was structural → Levi chose rigor) → **three
+  review→revise passes**. Pass 1 found a real gap — "never delay" untested against a
+  *stall* (synchronous hook); fixed with an explicit **`timeout: 10`** on the hook
+  entry (DEC-018; verified via Claude Code docs that a non-2 exit / signal-kill is
+  non-blocking). Pass 2 found that fix's **torn-write-on-SIGKILL residual** (part-1's
+  `_read_all` raises on a corrupt line) → accepted as low-probability (DEC-021), real
+  hardening (reader tolerance / crash-safe append) **deferred to part-1** as
+  `deferred.md` D-001 — not gating install. Pass 3 **clean on all three personas** →
+  **converged at df51ed6** (DEC-022, human-judged). Also logged DEC-019 (live hook vs
+  transcript-mining), DEC-020 (rejected review cuts). **Installed** the
+  `UserPromptSubmit` entry in `~/.claude/settings.json` (Levi's explicit go; clean add,
+  timeout 10, PYTHONPATH set). **Verified LIVE:** hook hot-loaded same-session and
+  captured real cross-session prompts (global scope working — DEC-005/014); a fresh
+  headless `claude -p` session captured a marker verbatim (user input only — **no system
+  prompt**, per Levi's intent), correct on every field, `validate()` PASS, `read_day`
+  surfaces it; fail-open drill (read-only lake path) → exit 0, empty stdout, one
+  breadcrumb line, live lake untouched. **AC1–AC5 all green live.**
+  **Remaining (formal spec closure):** `/spec verify` + `/spec close` on the hook spec
+  (produce takeaway) — mechanical. One synthetic `HOOK-ROLLOUT-TEST` entry sits in the
+  live lake (clearly marked; triage-droppable or removable on request).
+  **NEXT part:** part 2 (mobile shortcut) `/spec`, or new part 4 (minimal computer
+  dropper); part-1 iteration 3 candidate ACs = D-001 (crash-safe read/append) +
+  id-bearing read (computer-dropper spike).
