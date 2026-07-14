@@ -93,9 +93,11 @@
   prompt**, per Levi's intent), correct on every field, `validate()` PASS, `read_day`
   surfaces it; fail-open drill (read-only lake path) → exit 0, empty stdout, one
   breadcrumb line, live lake untouched. **AC1–AC5 all green live.**
-  **Remaining (formal spec closure):** `/spec verify` + `/spec close` on the hook spec
-  (produce takeaway) — mechanical. One synthetic `HOOK-ROLLOUT-TEST` entry sits in the
-  live lake (clearly marked; triage-droppable or removable on request).
+  **Spec CLOSED** (`/spec verify` → 12/12 ACs PASS by code+live evidence → `/spec close`,
+  DEC-023, takeaway written). Synthetic test entries cleaned from the live lake (race-safe
+  locked rewrite, backup kept). **⚠ New finding → D-002 (`spec/deferred.md`): `author:"user"`
+  is stamped blindly; the Agent SDK fires the hook by default, so programmatic/SDK sessions
+  pollute the lake — material for the account-switcher roadmap. Candidate hook iteration 2.**
   **NEXT part:** part 2 (mobile shortcut) `/spec`, or new part 4 (minimal computer
   dropper); part-1 iteration 3 candidate ACs = D-001 (crash-safe read/append) +
   id-bearing read (computer-dropper spike).
