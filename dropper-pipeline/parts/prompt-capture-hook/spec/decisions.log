@@ -376,3 +376,10 @@ before pass 3 (converge unless a *must-fix mechanism* appears) was met.
 Next: guarded install per ../INSTALL.md (settings.json write held for Levi's explicit
 go); then Phase-2 live verification (AC5.1).
 **Related:** whole spec.
+
+## DEC-023 — Iteration 1 closed
+**Decision:** Closed iteration 1 at spec.md SHA df51ed6.
+**Rationale:** 0 accepted gaps — 12/12 leaf ACs PASS by code + live evidence
+(verify report archive/v001-2026-07-13-2246-verify.md); hook installed and live.
+Details in archive/v001-2026-07-13-2250-takeaway.md.
+**Context:** auto-logged during /spec close (iteration 1).
