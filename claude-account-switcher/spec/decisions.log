@@ -258,3 +258,31 @@
   degradation makes it non-blocking); (b) leave UNCLEAR unlogged and re-surface only at verify (rejected
   — the assumption deserves an explicit paper trail so verify has a named target).
 - **Context:** via /spec implement (Phase 4 audit), Levi accepted 2026-06-30.
+
+## DEC-017 — setup-token mint needs interactive auth-code paste-back (addends DEC-010); mint() bridge missing
+- **Decision:** Logged as a known blocking defect; fix deferred to D-004 at Levi's choice (plan-not-fix
+  for now). A live manual tryout (2026-07-21, CLI v2.1.198) showed `claude setup-token` uses a REMOTE
+  callback (`platform.claude.com/oauth/code/callback`) and then interactively prompts
+  `Paste code here if prompted >`, waiting on its stdin for the `code#state` string the callback page
+  displays, before it exchanges that for the oat. cas `mint()` (cas/setup_token.py) only READS the pty —
+  it never prompts for the auth code nor writes it to the child's stdin — so the flow stalls and `add`
+  cannot complete end-to-end. The user's paste went to cas's own (unread) stdin, not to setup-token.
+- **Correction to DEC-010:** DEC-010 verified setup-token prints the URL (and eventually the oat) to
+  stdout, but never exercised a full authorization, so it missed the intermediate interactive
+  code-paste step. The URL/oat-to-stdout facts stand; the "hands-off capture" implication does not.
+- **AC impact:** AC2.1/AC2.4 as-implemented are effectively GAP against the live CLI. The /spec verify
+  report at spec_sha 56210ad marked AC2 PASS on MOCKED evidence only — the SetupTokenMinter mock never
+  modeled the paste prompt, so the gap was invisible to both the static audit and the unit tests.
+  AC2.4's letter ("user never pastes the OAT") remains satisfiable — the user pastes the auth CODE, not
+  the oat, which is still auto-scraped after the exchange.
+- **Companion fix already landed:** the pty was widened to 4096 cols (cas/setup_token.py) so
+  setup-token's width-aware TUI stops wrapping the URL at 80 chars — a separate live-discovered
+  truncation bug (the scrape had captured only the first 80-char line). Verified fixed against the live
+  CLI (full 346-char URL, redirect_uri + code_challenge present) and regression-tested. Prerequisite,
+  but does not by itself make `add` work.
+- **Planned fix (see D-004):** teach `mint()` to detect the paste prompt, ask the user for the code via
+  the io surface, write it to the pty master, then continue scraping the oat. Forward the full
+  `code#state` string verbatim.
+- **Status:** /spec close paused at phase `verified`; not closing over a non-functional `add`. Iteration
+  1 stays open until the mint bridge lands and AC2.x is re-verified live.
+- **Context:** via live manual tryout during paused /spec close (iteration 1), 2026-07-21.
