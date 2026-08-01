@@ -125,6 +125,47 @@ def test_accepts_legacy_user_prompt_key(lake, sidecar):
     assert read_lake(lake)[0]["text"] == "hello lake"
 
 
+def test_grok_camelcase_envelope(lake, sidecar):
+    """Grok UserPromptSubmit (live envelope 2026-08-01) → grok-hook entry."""
+    grok = {
+        "cwd": "/Users/levi/somewhere",
+        "hookEventName": "UserPromptSubmit",
+        "permissionMode": "default",
+        "prompt": "hello from grok",
+        "promptId": "p-1",
+        "sessionId": "sess-grok-xyz",
+        "timestamp": "2026-08-01T17:00:00Z",
+        "transcriptPath": "/tmp/t.jsonl",
+        "workspaceRoot": "/Users/levi/somewhere",
+    }
+    res = run_hook(grok, lake, sidecar)
+    assert res.returncode == 0
+    assert res.stdout == ""
+    e = read_lake(lake)[0]
+    validate(e)
+    assert e["text"] == "hello from grok"
+    assert e["source"] == "grok-hook"
+    assert e["author"] == "user"
+    assert e["context"] == {
+        "kind": "grok-session",
+        "session_id": "sess-grok-xyz",
+        "cwd": "/Users/levi/somewhere",
+    }
+    assert not sidecar.exists()
+
+
+def test_source_env_override_forces_claude_on_grok_shape(lake, sidecar):
+    grok = {
+        "cwd": "/Users/levi/somewhere",
+        "hookEventName": "UserPromptSubmit",
+        "prompt": "forced",
+        "sessionId": "sess-1",
+    }
+    res = run_hook(grok, lake, sidecar, COLLEVITY_HOOK_SOURCE="claude-hook")
+    assert res.returncode == 0
+    assert read_lake(lake)[0]["source"] == "claude-hook"
+
+
 def test_surfaces_via_read_day(lake, sidecar):  # AC5.1 (Phase-2 AC, testable now)
     run_hook(payload(prompt="findable"), lake, sidecar)
     today = datetime.now().astimezone().date()

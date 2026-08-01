@@ -1,17 +1,24 @@
-# Prompt-capture hook — install runbook (NOT yet installed)
+# Prompt-capture hook — install runbook
 
-*The hook is built and tested in this fork but deliberately **not** wired into
-`~/.claude/settings.json` — installing it is the one side-effectful step and is
-Levi's checkpoint (guard per launch instructions + spec flow).*
+**Status (2026-08-01):** LIVE for Claude Code. Shared script also accepts **Grok**
+`UserPromptSubmit` envelopes (camelCase). Grok already invokes this install via
+Claude-settings hook compatibility (`~/.claude/settings.json`); no second
+command is required (a duplicate `~/.grok/hooks` entry would double-capture).
+
+**SessionStart / entry-router:** same Claude settings file runs
+`entry-router/catchup.sh` on SessionStart — Grok inherits that too when Claude
+hook compat is on. That is the router parity path (#3).
+
+Canonical script:
+
+```
+…/dropper-pipeline/parts/prompt-capture-hook/hook/capture_prompt.py
+```
 
 ## What gets installed
 
-One `UserPromptSubmit` hook entry in `~/.claude/settings.json`. After the fork
-is merged into the repo (see `../PATCHES/APPLY.md`), the canonical script path is:
-
-```
-<repo>/dropper-pipeline/parts/prompt-capture-hook/hook/capture_prompt.py
-```
+One `UserPromptSubmit` + one `SessionStart` (router catch-up) in
+`~/.claude/settings.json` (live).
 
 ## settings.json snippet
 
@@ -70,14 +77,27 @@ Notes:
    not double-fire `UserPromptSubmit` on this version. If two appear, it's tolerated
    triage debt (DEC-010), not a hook defect — but note it.
 
-## Post-install verification (hook Phase 2)
+## Post-install / post-upgrade verification (manual — you own this gate)
 
-- Submit a prompt → `tail -1` the lake: verbatim text, `source: claude-hook`,
-  microsecond `created_at` with local offset, session_id + cwd present.
-- `read_day(today)` (or /checkin) surfaces it at the right wall-clock time.
-- Fail-open drill: set `COLLEVITY_LAKE` in the command to a read-only path,
-  submit a prompt → prompt goes through instantly, sidecar gains one line.
-  Restore the real path.
+Do after Claude Code or Grok CLI upgrades, or when capture feels silent.
+
+1. **Claude:** submit a throwaway prompt → `tail -1` lake → expect
+   `source: claude-hook`, verbatim text, offset `created_at`, context session_id+cwd.
+2. **Grok:** submit a throwaway prompt → `tail -1` lake → expect
+   `source: grok-hook` (same script; camelCase envelope).
+3. **Sidecar:**
+   `…/prompt-capture-hook/hook/capture_errors.log` — no new error lines for those submits.
+4. **Day read:** `python3 ~/.claude/skills/checkin/read_lake_day.py` (today) shows them.
+5. **Router:** `entry-router/catchup.log` gains a SessionStart/catch-up line after a
+   new session (Claude or Grok); or run `…/entry-router/catchup.sh` by hand once.
+
+Fail-open drill (optional): point `COLLEVITY_LAKE` at a read-only path, submit →
+prompt still goes through; sidecar gains one line; restore path.
+
+## Breakage (capture-health)
+
+Silent fail-open is by design. Standing thread **`capture-health`**: soft probes
+(checkin), sidecar skim, upgrade verify. Do not rely on prompts blocking.
 
 ## Rollback
 
