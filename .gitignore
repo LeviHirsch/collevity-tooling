@@ -13,6 +13,23 @@ __pycache__/
 venv/
 
 # Local env / secrets — never commit auth state or tokens
+# Match the literal filenames tools actually emit. Note the near-misses these replace:
+#   `.credentials.json` did NOT match `credentials.json`
+#   `*.token`           did NOT match `token.json`
+# Credentials belong in ~/.config/collevity/<integration>/ — see 01_STRATEGY/protocols/credentials-protocol.md
 .env
-.credentials.json
+*.env
+.env.*
+credentials.json
+*credentials*.json
+token.json
 *.token
+*client_secret*
+*.pem
+*.p12
+*service-account*
+
+# Log files — may capture prompt or payload contents
+*.log
+# ...except /spec decision logs, which are tracked project artifacts
+!**/spec/decisions.log
