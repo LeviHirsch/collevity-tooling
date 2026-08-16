@@ -1,0 +1,6 @@
+schema_version: 2
+integration_branch: main
+parent_branch: 
+iteration: 2026-08-15-mailman-v0
+integrator: levi
+contributors: levi

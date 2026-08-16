@@ -33,3 +33,5 @@ token.json
 *.log
 # ...except /spec decision logs, which are tracked project artifacts
 !**/spec/decisions.log
+.dev/
+TASKS.md
