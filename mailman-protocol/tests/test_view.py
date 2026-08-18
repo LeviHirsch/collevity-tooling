@@ -268,6 +268,24 @@ def test_stop_hook_exits_zero_when_the_state_dir_is_unwritable(cache, tmp_path):
 # ---------- the prompt hook keeps its own contract while doing this ----------
 
 
+def test_prompt_hook_continues_when_view_write_fails(tmp_path):
+    """A failed touch must not skip the rest of _check (T2 will live there)."""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("not a directory", encoding="utf-8")
+    sidecar = tmp_path / "sidecar.log"
+    result = run_hook(
+        PROMPT_HOOK,
+        json.dumps({"session_id": "s-1", "cwd": "/tmp/p"}),
+        blocked,
+        env_extra={"MAILMAN_DEBUG": "1", "MAILMAN_HOOK_ERRLOG": str(sidecar)},
+    )
+    assert result.returncode == 0
+    assert result.stdout == ""
+    text = sidecar.read_text(encoding="utf-8")
+    assert "stub ran" in text
+    assert "s-1" in text
+
+
 def test_prompt_hook_publishes_a_view(cache):
     payload = json.dumps({"session_id": "s-1", "cwd": "/tmp/project"})
     result = run_hook(PROMPT_HOOK, payload, cache)

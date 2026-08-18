@@ -28,9 +28,11 @@
   sessions publish about themselves — never by folder, assigned name, or subject
   subscription. T6 was retired settling this; do not reintroduce a folder-to-
   session lookup as an address. A directory is at most a filter.
-- **No staleness threshold is written down.** `age_seconds()` reports; deciding
-  what counts as too old to receive a note is a send-side call (T3) and has not
-  been made. Do not invent a constant for it.
+- **View age is last activity, not liveness.** `age_seconds()` reports how long
+  since a view last moved. Both triggers only fire on activity, so a session
+  left open for days is stale and fully alive. Do not refuse a recipient because
+  the view is old. An ended-session signal does not exist yet; T3 must not
+  invent a live/dead test from age.
 - **Both envelope shapes, always.** Claude sends `session_id`, Grok sends
   `sessionId` and reaches the same install through hook compatibility. Anything
   reading a payload accepts both.

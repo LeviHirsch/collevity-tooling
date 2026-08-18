@@ -23,30 +23,31 @@ WHAT A VIEW CARRIES (T18 decision, 2026-08-17)
     working_on  the short current focus
     reported_at when the semantic fields last changed
 
-The split matters. `updated_at` moving is what proves a session is alive;
-`reported_at` standing still while `updated_at` moves means a session that is
-running but has not said what it is doing lately. A consumer wants to tell
-those apart.
+The split matters. `updated_at` is last activity (a prompt, a turn ending, or
+a report). `reported_at` standing still while `updated_at` moves means the
+session has been busy but has not said what it is doing lately. Neither stamp
+is liveness — a session left open for days is stale and fully alive.
 
 WHY ONE FILE PER SESSION
 
 The roster (`mailman_register.py`) is append-only JSONL because many sessions
 write one shared file. Views are the opposite shape: each session owns its own
 file and rewrites it, so there is nothing to contend over, no reduction pass to
-find the newest record, and staleness is just the file's own timestamp — which
-is exactly what the liveness rule reads. Writes go through a temp file and
-`os.replace`, so a reader never catches a half-written view.
+find the newest record, and last-write time is just the file's own timestamp.
+Writes go through a temp file and `os.replace`, so a reader never catches a
+half-written view.
 
 Under `cache/` deliberately, same lifetime rule as the roster:
 `~/.collevity/README.md` declares that dir disposable, and a lost view costs at
 most one refresh on the session's next turn. Notes live at `~/.collevity/mailman/`
 because an unread note is real data loss (T1).
 
-LIVENESS IS NOT DECIDED HERE
+AGE IS NOT LIVENESS
 
-`age_seconds()` reports how long since a view last moved; no staleness
-threshold is baked in. "How old is too old" is a send-side call (T3) and was
-never ruled on — writing a constant here would be inventing it.
+`age_seconds()` reports how long since a view last moved. That is last
+activity, not whether the session is still open. Do not refuse a recipient
+because the view is old — a session left idle for days is stale and fully
+alive. An ended-session signal does not exist yet.
 
 Environment:
   MAILMAN_CACHE       — disposable state dir. Default `~/.collevity/cache/mailman`.
@@ -224,8 +225,8 @@ def read_all_views(directory: Path | None = None) -> list[View]:
 
 
 def age_seconds(view: View, now: datetime | None = None) -> float:
-    """Seconds since this view last moved. No threshold is applied — see the
-    module docstring; deciding what counts as too old is the send side's call."""
+    """Seconds since this view last moved. Last activity, not liveness — see
+    the module docstring; do not treat a large number as a dead session."""
     reference = now or datetime.now(timezone.utc)
     return (reference - _parsed_time(view.updated_at)).total_seconds()
 

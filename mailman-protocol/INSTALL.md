@@ -7,7 +7,7 @@ neither is live yet; installing touches the prompt path, which is Levi's call.
   (that is T2), but it now refreshes this session's published view on every
   prompt (T18).
 - `bin/mailman_publish.py` — `Stop`. Refreshes the same view when an agent turn
-  ends, so a session in a long autonomous run does not read as stopped.
+  ends, so a long autonomous run still updates between prompts.
 
 The `SessionStart` entry for `bin/mailman_register.py` is still undocumented
 here — T17 folds it in.

@@ -4,10 +4,10 @@
 **Still the T7 stub for note delivery.** Note reading, injection, and the
 receive-rule are T2; this script deliberately does not implement them.
 
-It does one real thing (T18): it refreshes this session's published view, so
-every prompt proves the session is still alive. That runs here rather than in a
-fourth `UserPromptSubmit` entry because this hook is already installed on the
-live prompt path, and a whole extra interpreter start per prompt buys nothing.
+It does one real thing (T18): it refreshes this session's published view on
+every prompt. That runs here rather than in a fourth `UserPromptSubmit` entry
+because this hook is already on the prompt path, and a whole extra interpreter
+start per prompt buys nothing. A refresh is last activity, not liveness.
 
 Why a stub ships first: this is the third hook on a *live* prompt path that
 already carries `capture_prompt.py` and `sync_lake.py`. Proving a new entry can
@@ -128,10 +128,14 @@ def _check() -> None:
     payload = read_payload()
     session_id, cwd = session_of(payload)
 
-    # T18: prove this session is alive. Mechanical fields only — topic, recap
-    # and working_on belong to the session's own agent and must survive this.
+    # T18: refresh the mechanical half. Isolated so a failed view write cannot
+    # skip T2 note delivery below. topic/recap/working_on belong to the
+    # session's own agent and must survive this.
     if session_id and mailman_view is not None:
-        mailman_view.touch(session_id, cwd=cwd, kind=mailman_view.harness_kind(payload))
+        try:
+            mailman_view.touch(session_id, cwd=cwd, kind=mailman_view.harness_kind(payload))
+        except Exception as exc:  # noqa: BLE001 — view write must not skip T2
+            _breadcrumb(f"view touch failed: {type(exc).__name__}: {exc}")
 
     # T2 implements the actual check here: read the notes file, find anything
     # addressed to this session, and write it to stdout with the receive-rule.

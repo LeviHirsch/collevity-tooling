@@ -4,8 +4,8 @@
 Refreshes this session's published view when an agent turn finishes (T18).
 `mailman_check.py` already does the same on `UserPromptSubmit`; this covers the
 gap that trigger leaves. A session in a long autonomous run never submits a
-prompt, so without a `Stop` entry it would stop updating and read as stopped —
-and that is precisely the session most worth reaching.
+prompt, so without a `Stop` entry its view would not move until the next one.
+That is last activity, not liveness — an idle open session is still alive.
 
 WHY THIS DOES NOT WAIT ON T14
 
