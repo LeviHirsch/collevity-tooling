@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Mailman scripted check — Claude Code + Grok `UserPromptSubmit`.
 
-**This is the T7 stub.** It occupies the hook slot and proves the slot is safe.
-It reads the payload, does nothing with it, and exits. Note reading, injection,
-and the receive-rule are T2; this script deliberately does not implement them.
+**Still the T7 stub for note delivery.** Note reading, injection, and the
+receive-rule are T2; this script deliberately does not implement them.
+
+It does one real thing (T18): it refreshes this session's published view, so
+every prompt proves the session is still alive. That runs here rather than in a
+fourth `UserPromptSubmit` entry because this hook is already installed on the
+live prompt path, and a whole extra interpreter start per prompt buys nothing.
 
 Why a stub ships first: this is the third hook on a *live* prompt path that
 already carries `capture_prompt.py` and `sync_lake.py`. Proving a new entry can
@@ -52,6 +56,15 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# Imported defensively: an ImportError at module level would escape `main()`'s
+# handler and exit non-zero, which is exactly what the safety contract forbids.
+# A missing view module costs a stale view, never a lost prompt.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import mailman_view  # noqa: E402 — needs the path above; hooks run from anywhere
+except Exception:  # noqa: BLE001 — fail-open by contract
+    mailman_view = None
 
 _SIDECAR_ENV = "MAILMAN_HOOK_ERRLOG"
 _DEBUG_ENV = "MAILMAN_DEBUG"
@@ -114,6 +127,11 @@ def session_of(payload: dict) -> tuple[str, str]:
 def _check() -> None:
     payload = read_payload()
     session_id, cwd = session_of(payload)
+
+    # T18: prove this session is alive. Mechanical fields only — topic, recap
+    # and working_on belong to the session's own agent and must survive this.
+    if session_id and mailman_view is not None:
+        mailman_view.touch(session_id, cwd=cwd, kind=mailman_view.harness_kind(payload))
 
     # T2 implements the actual check here: read the notes file, find anything
     # addressed to this session, and write it to stdout with the receive-rule.
