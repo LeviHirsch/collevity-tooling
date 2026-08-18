@@ -1,13 +1,22 @@
-# Mailman check hook — install runbook
+# Mailman hooks — install runbook
 
-**Status (2026-08-16):** **STUB, NOT INSTALLED.** `bin/mailman_check.py` occupies
-the hook slot and does nothing with the payload. Install it only if you want the
-slot proven early; nothing breaks if you wait for T2.
+**Status (2026-08-17):** **NOT INSTALLED.** Two entries are described here and
+neither is live yet; installing touches the prompt path, which is Levi's call.
 
-Canonical script:
+- `bin/mailman_check.py` — `UserPromptSubmit`. Still a stub for note *delivery*
+  (that is T2), but it now refreshes this session's published view on every
+  prompt (T18).
+- `bin/mailman_publish.py` — `Stop`. Refreshes the same view when an agent turn
+  ends, so a long autonomous run still updates between prompts.
+
+The `SessionStart` entry for `bin/mailman_register.py` is still undocumented
+here — T17 folds it in.
+
+Canonical scripts:
 
 ```
 …/collevity-tooling/mailman-protocol/bin/mailman_check.py
+…/collevity-tooling/mailman-protocol/bin/mailman_publish.py
 ```
 
 Stdlib only — no venv, no `PYTHONPATH`. That is deliberate: this runs on every
@@ -29,6 +38,11 @@ exit 2.
 
 `tests/test_check_stub.py` asserts this contract against malformed JSON, empty
 stdin, non-object payloads, missing keys, and an unwritable sidecar.
+`tests/test_view.py` re-asserts it now that the hook also writes a view — including
+a session id shaped like a path, which the view module refuses outright.
+
+The same reasoning covers `Stop`: a non-zero exit there reads as blocking the
+turn, so `mailman_publish.py` exits 0 on every path too.
 
 ## Where it sits
 
@@ -66,13 +80,17 @@ note check just happens again next prompt. Cheap failure, short leash.
 | `~/.collevity/mailman/notes.jsonl` | the notes (T1) | **durable** |
 | `~/.collevity/mailman/notes.read.jsonl` | read-state (T9) | **durable** |
 | `~/.collevity/cache/mailman/roster.jsonl` | live sessions (T13) | disposable |
+| `~/.collevity/cache/mailman/views/<session_id>.json` | published views (T18) | disposable |
 
 Split deliberately: `~/.collevity/README.md` declares `cache/` disposable —
 "deleting a tool's dir costs at most one redundant resync." That is true of
 session presence and false of an unread note. Override with `MAILMAN_HOME` and
 `MAILMAN_CACHE` if needed.
 
-The stub creates none of these. T1 and T13 do.
+T1 and T13 create the first three. The view files are created by
+`mailman_check.py` and `mailman_publish.py` themselves — one per session, rewritten
+in place through a temp file and `os.replace`, so a reader never catches a half
+view.
 
 ## Verify an install
 
@@ -85,7 +103,47 @@ Expect `exit=0`, no stdout, and one line in `bin/mailman_errors.log`. Then submi
 a real prompt in a fresh session and confirm the same log grew — that proves the
 third slot fires. Unset `MAILMAN_DEBUG` afterwards, or the log grows every prompt.
 
+## The Stop entry
+
+`Stop` has no existing mailman array. Add one:
+
+```json
+{
+  "type": "command",
+  "command": "python3 '/Users/levi/Library/Mobile Documents/com~apple~CloudDocs/00_COLLEVITY/02_CONTENT/collevity-tooling/mailman-protocol/bin/mailman_publish.py'",
+  "timeout": 5
+}
+```
+
+This does **not** wait on T14. That spike is about what *injection* each event
+supports — whether stdout from `Stop` reaches context and whether blocking there
+loops. This hook injects nothing; it writes a file and exits.
+
+Verify it the same way:
+
+```sh
+echo '{"session_id":"test","cwd":"/tmp"}' \
+  | MAILMAN_DEBUG=1 python3 bin/mailman_publish.py; echo "exit=$?"
+cat ~/.collevity/cache/mailman/views/test.json
+```
+
+## Saying what this session is doing
+
+The hooks only write the mechanical half of a view. `topic`, `recap`, and
+`working_on` are written by the session's own agent, when they change:
+
+```sh
+python3 bin/mailman_view.py report --topic "Mailman protocol" --working-on "T18"
+python3 bin/mailman_view.py list
+```
+
+`mailman_view.py` is **not** a hook — it is free to fail loudly. With no
+`--session` it uses `CLAUDE_SESSION_ID`/`GROK_SESSION_ID`, then the lone
+published view in the current directory, and refuses rather than guessing when
+two sessions publish from the same place.
+
 ## Uninstall
 
-Remove the object from the `UserPromptSubmit` array. Nothing else to undo — the
-stub writes no state outside its sidecar log.
+Remove the objects from the `UserPromptSubmit` and `Stop` arrays. Then delete
+`~/.collevity/cache/mailman/views/` if you want the published views gone — that
+dir is disposable and nothing else reads it yet.
